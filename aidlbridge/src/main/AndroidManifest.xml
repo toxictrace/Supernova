@@ -22,7 +22,7 @@
         </activity>
 
         <service
-            android:name=".BridgeService"
+            android:name="amirz.aidlbridge.BridgeService"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
