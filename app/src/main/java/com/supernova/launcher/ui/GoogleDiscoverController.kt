@@ -398,7 +398,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     private companion object {
         const val TAG = "GoogleDiscover"
         const val GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox"
-        const val BRIDGE_PACKAGE = "amirz.aidlbridge"
+        const val BRIDGE_PACKAGE = "com.supernova.googlecompanion"
         const val OVERLAY_ACTION = "com.android.launcher3.WINDOW_OVERLAY"
         const val CLIENT_OPTIONS = 15
         const val DIRECTION_BIAS = 1.2f

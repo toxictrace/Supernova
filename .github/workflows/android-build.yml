@@ -96,14 +96,14 @@ jobs:
             APK=app/build/outputs/apk/release/app-release-unsigned.apk
           fi
           test -f "$APK"
-          BRIDGE_APK=aidlbridge/build/outputs/apk/release/aidlbridge-release.apk
-          test -f "$BRIDGE_APK"
+          COMPANION_APK=aidlbridge/build/outputs/apk/release/aidlbridge-release.apk
+          test -f "$COMPANION_APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
-          "$APKSIGNER" verify --verbose --print-certs "$BRIDGE_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$COMPANION_APK"
           cp "$APK" app-release.apk
-          cp "$BRIDGE_APK" aidlbridge-release.apk
+          cp "$COMPANION_APK" supernova-google-companion-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -113,10 +113,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload Discover bridge APK
+      - name: Upload Google Companion APK
         uses: actions/upload-artifact@v4
         with:
-          name: aidlbridge-release
-          path: aidlbridge-release.apk
+          name: supernova-google-companion
+          path: supernova-google-companion-release.apk
           if-no-files-found: error
           retention-days: 14

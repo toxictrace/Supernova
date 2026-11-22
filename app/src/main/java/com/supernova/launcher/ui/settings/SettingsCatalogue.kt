@@ -1254,7 +1254,13 @@ object SettingsCatalogue {
                         R.string.google_discover_enabled,
                         subtitle = R.string.google_discover_enabled_subtitle,
                         get = { it.googleDiscoverEnabled },
-                        set = { viewModel.set(Pref.googleDiscoverEnabled, it) }
+                        set = { viewModel.set(Pref.googleDiscoverEnabled, it) },
+                        visibleIf = {
+                            runCatching {
+                                context.packageManager.getPackageInfo("com.supernova.googlecompanion", 0)
+                                true
+                            }.getOrDefault(false)
+                        }
                     )
                 )
                 add(

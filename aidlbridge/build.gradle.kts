@@ -11,11 +11,11 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "amirz.aidlbridge"
+    namespace = "com.supernova.googlecompanion"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "amirz.aidlbridge"
+        applicationId = "com.supernova.googlecompanion"
         minSdk = 28
         // Google App accepts the bridge as a debuggable launcher client.
         // Keep the legacy target for the private launcher-overlay protocol.
