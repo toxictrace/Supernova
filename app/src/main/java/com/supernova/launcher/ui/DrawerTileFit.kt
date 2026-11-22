@@ -86,7 +86,7 @@ data class DrawerTileFit(
             val root = tile.root
             val height = if (rowPx > 0) rowPx else ViewGroup.LayoutParams.WRAP_CONTENT
             if (root.layoutParams.height != height) root.layoutParams = root.layoutParams.apply { this.height = height }
-            val gravity = if (rowPx > 0) Gravity.CENTER else Gravity.CENTER_HORIZONTAL
+            val gravity = if (rowPx > 0) Gravity.TOP or Gravity.CENTER_HORIZONTAL else Gravity.CENTER_HORIZONTAL
             if (root.gravity != gravity) root.gravity = gravity
             if (root.paddingTop != fit.paddingPx || root.paddingBottom != fit.paddingPx) {
                 root.setPadding(root.paddingLeft, fit.paddingPx, root.paddingRight, fit.paddingPx)
