@@ -1104,6 +1104,21 @@ class LauncherActivity :
         // pixels in; a downward one would fire the swipe-down on the lift.
         if (widgets.trackResizeDrag(ev)) return true
         if (::feed.isInitialized) {
+            // When the built-in feed is open, Google Discover gets first
+            // refusal so a rightward swipe can open the next feed.
+            if (feed.isOpen) {
+                when (googleDiscover.onTouch(ev, googleDiscoverEligible(ev.x, ev.y))) {
+                    GoogleDiscoverController.TouchResult.PASS -> Unit
+                    GoogleDiscoverController.TouchResult.CONSUMED -> return true
+                    GoogleDiscoverController.TouchResult.TAKE_OVER -> {
+                        val cancel = MotionEvent.obtain(ev)
+                        cancel.action = MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                        return true
+                    }
+                }
+            }
             when (feed.onTouch(ev)) {
                 // The feed owns the rest of this stream (edge-swipe drag).
                 FeedController.TouchResult.CONSUMED -> return true
@@ -1118,15 +1133,18 @@ class LauncherActivity :
                 }
                 FeedController.TouchResult.PASS -> Unit
             }
-            when (googleDiscover.onTouch(ev, googleDiscoverEligible(ev.x, ev.y))) {
-                GoogleDiscoverController.TouchResult.PASS -> Unit
-                GoogleDiscoverController.TouchResult.CONSUMED -> return true
-                GoogleDiscoverController.TouchResult.TAKE_OVER -> {
-                    val cancel = MotionEvent.obtain(ev)
-                    cancel.action = MotionEvent.ACTION_CANCEL
-                    super.dispatchTouchEvent(cancel)
-                    cancel.recycle()
-                    return true
+            // On the workspace, preserve the built-in feed's gesture priority.
+            if (!feed.isOpen) {
+                when (googleDiscover.onTouch(ev, googleDiscoverEligible(ev.x, ev.y))) {
+                    GoogleDiscoverController.TouchResult.PASS -> Unit
+                    GoogleDiscoverController.TouchResult.CONSUMED -> return true
+                    GoogleDiscoverController.TouchResult.TAKE_OVER -> {
+                        val cancel = MotionEvent.obtain(ev)
+                        cancel.action = MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                        return true
+                    }
                 }
             }
             // An open feed pane handles its own touches; home gestures and
