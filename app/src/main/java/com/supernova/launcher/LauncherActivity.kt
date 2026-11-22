@@ -119,6 +119,7 @@ import com.supernova.launcher.ui.CustomCardEditorSheet
 import com.supernova.launcher.ui.DockBgStyle
 import com.supernova.launcher.ui.DrawerController
 import com.supernova.launcher.ui.FeedController
+import com.supernova.launcher.ui.GoogleDiscoverController
 import com.supernova.launcher.ui.IndicatorStyle
 import com.supernova.launcher.ui.SearchBarConfig
 import com.supernova.launcher.ui.SearchBarPlacement
@@ -153,6 +154,7 @@ class LauncherActivity :
     private lateinit var widgets: WidgetController
     private lateinit var search: SearchController
     private lateinit var feed: FeedController
+    private lateinit var googleDiscover: GoogleDiscoverController
     // Swipe-up drawer pull (a finger-tracking open): armed on a down
     // that may become a swipe-up, active once it does. See trackDrawerPull.
     private var drawerPullArmed = false
@@ -700,6 +702,12 @@ class LauncherActivity :
         setupDrawer()
         setupSearch()
         setupFeed()
+        googleDiscover = GoogleDiscoverController(this)
+        binding.root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) = googleDiscover.onAttachedToWindow()
+            override fun onViewDetachedFromWindow(view: View) = googleDiscover.onDetachedFromWindow()
+        })
+        googleDiscover.setEnabled(viewModel.state.value.prefs.googleDiscoverEnabled)
         setupDock()
         drag = LiveDragController(binding, viewModel, host = this, drops = workspaceDrops)
         setupEditMode()
@@ -956,6 +964,7 @@ class LauncherActivity :
         // showing; its media and calendar listeners are registered with the
         // system and would keep this activity alive for good.
         if (::feed.isInitialized) feed.release()
+        if (::googleDiscover.isInitialized) googleDiscover.onDestroy()
         WallpaperManager.getInstance(this).removeOnColorsChangedListener(wallpaperColorsListener)
         runCatching { unregisterReceiver(screenOffReceiver) }
         // It takes itself off once the dock has settled; a destroy can come
@@ -1004,6 +1013,7 @@ class LauncherActivity :
 
     override fun onStart() {
         super.onStart()
+        if (::googleDiscover.isInitialized) googleDiscover.onStart()
         MainStallWatch.start()
         startedSinceResume = true
         widgets.startListening()
@@ -1027,11 +1037,13 @@ class LauncherActivity :
         widgets.stopListening()
         runCatching { unregisterReceiver(dateChangeReceiver) }
         MainStallWatch.stop()
+        if (::googleDiscover.isInitialized) googleDiscover.onStop()
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
+        if (::googleDiscover.isInitialized) googleDiscover.onResume()
         // Cleared after onNewIntent, which runs first on the way back in.
         startedSinceResume = false
         // The launcher is what the user is looking at again, so a drawer still
@@ -1044,6 +1056,7 @@ class LauncherActivity :
         // Home pressed while a circle was still filling, say: that launch is
         // off. One already asked for carries on.
         launchPrelude.cancelPending()
+        if (::googleDiscover.isInitialized) googleDiscover.onPause()
         super.onPause()
     }
 
@@ -1104,6 +1117,17 @@ class LauncherActivity :
                     return true
                 }
                 FeedController.TouchResult.PASS -> Unit
+            }
+            when (googleDiscover.onTouch(ev, googleDiscoverEligible(ev.x, ev.y))) {
+                GoogleDiscoverController.TouchResult.PASS -> Unit
+                GoogleDiscoverController.TouchResult.CONSUMED -> return true
+                GoogleDiscoverController.TouchResult.TAKE_OVER -> {
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                    return true
+                }
             }
             // An open feed pane handles its own touches; home gestures and
             // dock swipes stay out of it like they do for drawer/search.
@@ -1324,6 +1348,20 @@ class LauncherActivity :
         }
         drawerPullVelocity = null
         drawer.endPull(velocity, cancelled)
+    }
+
+    // Google Discover is the left-side page when the built-in feed is off.
+    // It takes priority over infinite wrapping on the first workspace page.
+    private fun googleDiscoverEligible(x: Float, y: Float): Boolean {
+        val prefs = viewModel.state.value.prefs
+        if (!prefs.googleDiscoverEnabled) return false
+        if (prefs.feedEnabled) return feed.isOpen
+        if (workspaceAdapter.realPage(binding.workspacePager.currentItem) != 0) return false
+        if (drag.isArmed || drag.activeItemPopup != null) return false
+        if (desktopPreviews.isShowing) return false
+        if (::editMode.isInitialized && editMode.isOpen) return false
+        val dockTop = if (binding.dockBar.visibility == View.VISIBLE) binding.dockBar.top else binding.root.height
+        return y >= binding.workspacePager.top && y < dockTop && x >= 0f
     }
 
     // Whether a swipe from (x, y) may pull the feed in like a pager page:
@@ -1898,6 +1936,7 @@ class LauncherActivity :
                     )
                     applySystemChrome(state.prefs)
                     feed.onPrefs(state.prefs)
+                    googleDiscover.setEnabled(state.prefs.googleDiscoverEnabled)
                     // Everything above needs no icons, so it runs as soon as
                     // the persisted state decodes. Everything below binds
                     // icons: doing that before the catalog is configured and

@@ -947,6 +947,8 @@
 
     <!-- Phase 7: feed page -->
     <string name="settings_section_feed">Feed</string>
+    <string name="google_discover_enabled">Google Discover</string>
+    <string name="google_discover_enabled_subtitle">Open Google Discover with a right swipe</string>
     <string name="feed_enabled">Show before the first page</string>
     <string name="feed_enabled_subtitle">Show the feed as an additional home screen page before the first</string>
     <string name="feed_card_colors">Card colors</string>

@@ -1251,6 +1251,14 @@ object SettingsCatalogue {
             buildList {
                 add(
                     SettingItem.Toggle(
+                        R.string.google_discover_enabled,
+                        subtitle = R.string.google_discover_enabled_subtitle,
+                        get = { it.googleDiscoverEnabled },
+                        set = { viewModel.set(Pref.googleDiscoverEnabled, it) }
+                    )
+                )
+                add(
+                    SettingItem.Toggle(
                         R.string.feed_enabled,
                         subtitle = R.string.feed_enabled_subtitle,
                         get = { it.feedEnabled },

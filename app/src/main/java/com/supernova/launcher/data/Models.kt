@@ -525,6 +525,8 @@ data class LauncherPrefs(
     // which built-in sections/cards render. Calendar/contacts stay off by
     // default because they are permission-gated. The page itself starts on.
     val feedEnabled: Boolean = true,
+    // Google Discover is independent of the built-in feed and starts off.
+    val googleDiscoverEnabled: Boolean = false,
     val feedEdgeSwipe: Boolean = true,
     val feedShowSearch: Boolean = true,
     // The buttons at the feed bar's right end, as drawerActionButtons; the

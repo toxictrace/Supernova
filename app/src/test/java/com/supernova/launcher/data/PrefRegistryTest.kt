@@ -14,6 +14,7 @@ import com.supernova.launcher.ui.ScrollEffect
 import com.supernova.launcher.ui.theme.ThemeMode
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,6 +41,11 @@ class PrefRegistryTest {
     // Each key holding something other than its default, the same store has
     // to come back from a read and a write: a spec of the wrong type, or one
     // filling the wrong field, breaks it.
+    @Test
+    fun `Google Discover is disabled by default`() {
+        assertFalse(LauncherPrefs().googleDiscoverEnabled)
+    }
+
     @Test
     fun `every setting survives a read and a write`() {
         val defaults = mutablePreferencesOf().also { LauncherPreferences.writeAll(it, LauncherPrefs()) }

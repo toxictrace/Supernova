@@ -334,6 +334,7 @@ object Pref {
     val homeRotation = bool("home_rotation")
     val homeOrientation = text("home_orientation")
     val feedEnabled = bool("feed_enabled")
+    val googleDiscoverEnabled = bool("google_discover_enabled")
     val feedEdgeSwipe = bool("feed_edge_swipe")
     val feedShowSearch = bool("feed_show_search")
     val feedBarButtons = text("feed_bar_buttons")

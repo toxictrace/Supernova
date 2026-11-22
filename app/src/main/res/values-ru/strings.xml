@@ -917,6 +917,8 @@
     <string name="home_return_default_page">Возвращаться на главную страницу</string>
     <string name="home_return_default_page_summary">Переход с главного экрана из приложения или после выключения экрана открывает страницу по умолчанию</string>
     <string name="settings_section_feed">Лента</string>
+    <string name="google_discover_enabled">Google Discover</string>
+    <string name="google_discover_enabled_subtitle">Открывать Google Discover свайпом вправо</string>
     <string name="feed_enabled">Показывать перед первой страницей</string>
     <string name="feed_enabled_subtitle">Показывать ленту как дополнительную страницу главного экрана перед первой страницей</string>
     <string name="feed_card_colors">Цвета карточек</string>
