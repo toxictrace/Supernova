@@ -1,0 +1,1024 @@
+package com.supernova.launcher.ui
+
+import android.app.Activity
+import android.appwidget.AppWidgetHostView
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Rect
+import android.os.Bundle
+import android.os.SystemClock
+import android.util.SizeF
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.children
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.supernova.launcher.R
+import com.supernova.launcher.data.ItemType
+import com.supernova.launcher.data.LauncherItem
+import com.supernova.launcher.data.LauncherModel
+import com.supernova.launcher.feed.FeaturedType
+import com.supernova.launcher.data.LauncherPrefs
+import com.supernova.launcher.data.LauncherRepository
+import com.supernova.launcher.data.WorkspaceGeometry
+import com.supernova.launcher.databinding.ActivityLauncherBinding
+import com.supernova.launcher.runLogged
+import com.supernova.launcher.widget.SupernovaWidgetHost
+import com.supernova.launcher.widget.SupernovaWidgetHostView
+import com.supernova.launcher.widget.WidgetFeatures
+import com.supernova.launcher.widget.WidgetResizeFrame
+import com.supernova.launcher.widget.WidgetSizing
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlin.math.hypot
+
+// Everything that hosts an app widget: the AppWidgetHost and its host views
+// (workspace items, feed cards, the search bar's stand-in), the add flow
+// (picker, bind, configure, finalize, and the pending widget that survives a
+// recreate), the resize frame, per-widget padding, and the two touch
+// trackers that keep a resize handle drag and a widget's own scrolling out
+// of the home gestures. The activity keeps the menus and the model writes it
+// already had; Host is what this class asks of it.
+class WidgetController(
+    private val activity: AppCompatActivity,
+    private val binding: ActivityLauncherBinding,
+    private val viewModel: LauncherViewModel,
+    private val host: Host
+) {
+
+    interface Host {
+        val workspaceAdapter: WorkspacePagerAdapter
+
+        // An open feed pane covers the resize frame; a press there is the pane's.
+        val feedOpen: Boolean
+        fun currentCellSizePx(): Pair<Int, Int>
+
+        // The home gesture detector saw a down that a widget has now claimed.
+        fun cancelGesture(cancel: MotionEvent)
+
+        // A workspace widget's long-press: the item menu, armed for a drag.
+        fun onWidgetLongPress(view: View, item: LauncherItem)
+        fun onSearchBarWidgetLongPress(anchor: View)
+
+        // The picker's shortcut rows (create, action, activities).
+        fun pickShortcutTarget(target: ShortcutTarget)
+    }
+
+    private val appWidgetManager: AppWidgetManager = AppWidgetManager.getInstance(activity)
+    private val appWidgetHost = SupernovaWidgetHost(activity, SupernovaWidgetHost.HOST_ID)
+
+    fun startListening() {
+        // The system hands back every widget's pending update in one reply,
+        // which a big collection widget can push past the binder's limit;
+        // the host rethrows that as a RuntimeException, a crash on every
+        // return home. Listening is set up before the reply fails, and each
+        // widget fills in on bind anyway, so it is let slide, as Launcher3
+        // does.
+        runLogged("start widget host") { appWidgetHost.startListening() }
+    }
+
+    fun stopListening() = appWidgetHost.stopListening()
+
+    // A configuration change relays every widget its size again.
+    fun clearReportedSizes() = lastReportedSizes.clear()
+
+    // A widget's provider label, for the export-PNG row.
+    fun label(widgetId: Int): String? =
+        runCatching { appWidgetManager.getAppWidgetInfo(widgetId)?.loadLabel(activity.packageManager)?.toString() }.getOrNull()
+
+    // A widget item is leaving the model. Its host id and cached view stay
+    // until releaseWidget, so Undo can put the same widget back as it was.
+    fun onWidgetItemRemoved(item: LauncherItem) {
+        // Its resize frame goes now rather than at the rebind: after a drop
+        // on Remove the widget stays hidden, and a write landing after the
+        // drag's end would bring the frame back around nothing.
+        if (activeResizeFrame?.itemId == item.id) dismissResizeFrame()
+    }
+
+    // The removal is final (no Undo, or the Undo bar went): the host id goes,
+    // and so do its cached view and size. One left behind by a recreate or a
+    // process death in between is reclaimed by sweepOrphanIds.
+    fun releaseWidget(item: LauncherItem) {
+        val id = item.appWidgetId ?: return
+        appWidgetHost.deleteAppWidgetId(id)
+        lastReportedSizes.remove(id)
+        widgetHostViews.remove(id)
+    }
+
+    // One host view per card widget, reused on every bind. The feed rebinds
+    // its cards as it opens and on every media, calendar or contacts change,
+    // and a fresh view each time blanked and reloaded the widget, scrolling
+    // a list widget back to its top on every track change.
+    fun cardWidgetView(appWidgetId: Int): View? {
+        val info = appWidgetManager.getAppWidgetInfo(appWidgetId)
+        return if (info == null) {
+            cardWidgetViews.remove(appWidgetId)
+            null
+        } else {
+            cardWidgetViews[appWidgetId]
+                ?: createWidgetHostView(appWidgetId, info)?.also { hostView ->
+                    cardWidgetViews[appWidgetId] = hostView
+                    // The card sets the height (its stepper, or the whole
+                    // feed page): the provider is told each new size, so it
+                    // lays out for it rather than for its default cells.
+                    hostView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                        reportCardWidgetSize(appWidgetId, view as AppWidgetHostView)
+                    }
+                }
+        }
+    }
+
+    private fun reportCardWidgetSize(widgetId: Int, hostView: AppWidgetHostView) {
+        if (hostView.width <= 0 || hostView.height <= 0) return
+        val size = SizeF(hostView.width.toFloat(), hostView.height.toFloat())
+        if (lastReportedSizes[widgetId] == size) return
+        lastReportedSizes[widgetId] = size
+        WidgetSizing.reportSize(hostView, hostView.width, hostView.height, activity.resources.displayMetrics.density)
+    }
+
+    // A pending widget is bound for one of these destinations: a workspace
+    // cell, a custom feed card, the search bar, or a restored widget's own item.
+    sealed interface Target {
+        data class Workspace(
+            val page: Int,
+            val cellX: Int,
+            val cellY: Int,
+            // Neighbours the drop previewed aside (a drag from the add sheet);
+            // applied when the widget finally lands.
+            val displace: List<WorkspaceGeometry.ReorderMove> = emptyList()
+        ) : Target
+        data class Card(val cardId: String) : Target
+        // A widget restored without a live id, on its placeholder's tap.
+        data class Restored(val itemId: String) : Target
+        // Replace: the widget stands in for the desktop search bar.
+        data object SearchBar : Target
+    }
+
+    // Kept in the view model: a dark-mode, font-size or language change
+    // recreates the activity while a widget's bind or setup screen is up,
+    // and the answer then reached a new activity that had lost the widget -
+    // it said the add was interrupted and deleted the id.
+    private var pendingWidget: PendingWidget?
+        get() = viewModel.pendingWidgetAdd as? PendingWidget
+        set(value) {
+            viewModel.pendingWidgetAdd = value
+        }
+
+    private val lastReportedSizes = mutableMapOf<Int, SizeF>()
+    // Feed and search cards' featured widgets, by widget id.
+    private val cardWidgetViews = mutableMapOf<Int, View>()
+
+    // Live workspace widget views, reused across page rebinds: recreating an
+    // AppWidgetHostView leaves it blank until the provider redelivers its
+    // RemoteViews, which flashed the whole screen after every drop.
+    private val widgetHostViews = mutableMapOf<Int, AppWidgetHostView>()
+
+    // Touch stream currently owned by a widget's own scrolling content, plus
+    // the widget the finger went down on while it is still undecided.
+    private var scrollingWidget: SupernovaWidgetHostView? = null
+    private var touchedWidget: SupernovaWidgetHostView? = null
+    private val widgetHitRect = Rect()
+    private val widgetHitLocation = IntArray(2)
+
+
+    // The widget resize frame that is up, always on the canvas holding its
+    // widget (onPageBound), and hidden while that widget is being dragged
+    // (beginLiveDrag); every way down goes through dismissResizeFrame.
+    var activeResizeFrame: WidgetResizeFrame? = null
+        private set
+    // Items and cards rebindRestoredWidgets has seen.
+    private val rebindsTried = HashSet<String>()
+    // Ids handed to the model this session (rebinds and finished adds), kept
+    // from the orphan sweep: the model write lands a moment later, and a
+    // sweep already reading the old layout would delete them.
+    private val reboundIds = HashSet<Int>()
+
+    // From a press on that frame's edge to its lift. See trackResizeDrag.
+    private var resizeDragActive = false
+    // A press on the framed widget, until it moves or lifts.
+    private var pressOnFramedWidget = false
+    private var pressStartX = 0f
+    private var pressStartY = 0f
+    private val touchSlop = android.view.ViewConfiguration.get(activity).scaledTouchSlop
+    private var hostedSearchWidgetId: Int = 0
+
+    // For the crash log when an add fails (WidgetAddTrail): this screen's
+    // age, where its pending add came from, and when a setup screen opened.
+    private val createdAt = SystemClock.elapsedRealtime()
+    private var pendingFrom = "add kept in view model"
+    private var setupOpenedAt = 0L
+
+    private val bindWidgetLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val pending = pendingWidget
+        WidgetAddTrail.step("allow screen answered ${WidgetAddTrail.answer(result.resultCode)}")
+        if (pending == null) {
+            // Process was recreated mid-flow: abort deterministically.
+            WidgetAddTrail.fail("interrupted at the allow screen", launcherState(result.resultCode, result.data))
+            deleteWidgetIdFromResult(result.data)
+            Toast.makeText(activity, R.string.widget_add_interrupted, Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
+        if (result.resultCode == Activity.RESULT_OK) {
+            val info = appWidgetManager.getAppWidgetInfo(pending.widgetId)
+            if (info == null) {
+                WidgetAddTrail.fail("provider gone after the allow screen", launcherState(result.resultCode))
+                abortPendingWidget()
+                Toast.makeText(activity, R.string.widget_provider_missing, Toast.LENGTH_SHORT).show()
+            } else {
+                proceedToConfigure(info)
+            }
+        } else {
+            abortPendingWidget()
+        }
+    }
+
+    private val configureWidgetLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        handleConfigureResult(result.resultCode, result.data)
+    }
+
+    // Also kept in the saved state: a phone short on memory can kill the
+    // launcher while a widget's setup screen (a photo picker, say) is up,
+    // and its answer then reached a new process that had lost the widget.
+    init {
+        val registry = activity.savedStateRegistry
+        if (pendingWidget == null) {
+            val restored = registry.consumeRestoredStateForKey(PENDING_WIDGET_STATE)
+            val fromState = restored?.let(PendingWidget::fromBundle)
+            fromState?.let { pendingWidget = it }
+            pendingFrom = when {
+                fromState != null -> "add restored from saved state"
+                restored != null -> "saved state, no add in it"
+                else -> "no saved state"
+            }
+        }
+        registry.registerSavedStateProvider(PENDING_WIDGET_STATE) { pendingWidget?.toBundle() ?: Bundle() }
+    }
+
+    // Reclaims host ids leaked by any interrupted add flow or by uninstall-driven
+    // item removal; deleting an already-deleted id is a no-op.
+    fun sweepOrphanIds() {
+        activity.lifecycleScope.launch {
+            val referenced = viewModel.persistedWidgetIds() ?: return@launch
+            appWidgetHost.appWidgetIds
+                .filter { it !in referenced && it != pendingWidget?.widgetId && it !in reboundIds }
+                .forEach {
+                    appWidgetHost.deleteAppWidgetId(it)
+                    widgetHostViews.remove(it)
+                    cardWidgetViews.remove(it)
+                }
+        }
+    }
+
+    // The resize frame's share of a touch, ahead of the swipe trackers. A press
+    // on an edge's band starts the frame's drag, which is the frame's alone, as
+    // a live drag is the drag layer's: true for its whole stream. A press
+    // anywhere else takes the frame down and goes on as it would have, except
+    // on the widget itself, where a tap keeps it up and a move does not. In
+    // edit mode that press keeps it up too (keepOnPress): a tap would otherwise
+    // close the frame and edit mode together. An open feed pane covers the
+    // frame, and a press there is the pane's.
+    fun trackResizeDrag(ev: MotionEvent, keepOnPress: Boolean = false): Boolean {
+        val frame = activeResizeFrame
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                resizeDragActive = false
+                pressOnFramedWidget = false
+                if (frame != null && !host.feedOpen) onFramePress(frame, ev, keepOnPress)
+            }
+            MotionEvent.ACTION_MOVE ->
+                if (resizeDragActive) {
+                    frame?.dragTo(ev.rawX, ev.rawY)
+                } else if (pressOnFramedWidget && hypot(ev.rawX - pressStartX, ev.rawY - pressStartY) > touchSlop) {
+                    pressOnFramedWidget = false
+                    dismissResizeFrame()
+                }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                pressOnFramedWidget = false
+                val ended = resizeDragActive
+                resizeDragActive = false
+                if (ended) frame?.endDrag()
+                return ended
+            }
+        }
+        return resizeDragActive
+    }
+
+    private fun onFramePress(frame: WidgetResizeFrame, ev: MotionEvent, keepOnPress: Boolean) {
+        when (frame.press(ev.rawX, ev.rawY)) {
+            WidgetResizeFrame.Press.EDGE -> resizeDragActive = true
+            WidgetResizeFrame.Press.WIDGET -> {
+                pressOnFramedWidget = true
+                pressStartX = ev.rawX
+                pressStartY = ev.rawY
+            }
+            WidgetResizeFrame.Press.OUTSIDE -> if (!keepOnPress) dismissResizeFrame()
+        }
+    }
+
+    // True while the widget under the finger is handling this gesture itself.
+    // Two signals, because they arrive at different times: content that can
+    // already scroll is known at the down, while a stack or flipper only
+    // claims the stream once the drag passes its own slop.
+    fun trackWidgetScroll(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchedWidget = widgetHostUnder(ev.rawX, ev.rawY)
+                scrollingWidget = touchedWidget?.takeIf { it.hasScrollableContent() }
+            }
+            MotionEvent.ACTION_MOVE -> if (scrollingWidget == null) {
+                touchedWidget?.takeIf { it.contentOwnsTouch }?.let {
+                    scrollingWidget = it
+                    // The detector already saw the down and the moves before
+                    // the takeover; cancel so that half-read swipe can't fire.
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    host.cancelGesture(cancel)
+                    cancel.recycle()
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val owned = scrollingWidget != null
+                scrollingWidget = null
+                touchedWidget = null
+                return owned
+            }
+        }
+        return scrollingWidget != null
+    }
+
+    // Widget host views are laid out inside the pager pages, so a plain
+    // screen-rect test is enough - and it skips the pages parked off-screen.
+    private fun widgetHostUnder(rawX: Float, rawY: Float): SupernovaWidgetHostView? {
+        val x = rawX.toInt()
+        val y = rawY.toInt()
+        for (host in widgetHostViews.values) {
+            if (host !is SupernovaWidgetHostView || !host.isShown) continue
+            host.getLocationOnScreen(widgetHitLocation)
+            widgetHitRect.set(
+                widgetHitLocation[0],
+                widgetHitLocation[1],
+                widgetHitLocation[0] + host.width,
+                widgetHitLocation[1] + host.height
+            )
+            if (widgetHitRect.contains(x, y)) return host
+        }
+        return null
+    }
+
+    // Inflates the Replace widget into the bar's slot, or clears it. Returns
+    // the hosted view, or null when the built-in bar should show.
+    fun bindSearchBarWidget(prefs: LauncherPrefs): View? {
+        val slot = binding.desktopSearchWidget
+        val id = prefs.searchBarWidgetId
+        if (id == 0) {
+            if (slot.childCount > 0) slot.removeAllViews()
+            hostedSearchWidgetId = 0
+            return null
+        }
+        if (hostedSearchWidgetId == id && slot.childCount > 0) return slot.getChildAt(0)
+        val info = appWidgetManager.getAppWidgetInfo(id)
+        if (info == null) {
+            // The provider went away with an uninstall; fall back rather than
+            // leaving an empty slot.
+            slot.removeAllViews()
+            hostedSearchWidgetId = 0
+            viewModel.setSearchBarWidget(0, "")
+            Toast.makeText(activity, R.string.search_bar_widget_gone, Toast.LENGTH_SHORT).show()
+            return null
+        }
+        slot.removeAllViews()
+        // Guarded like every other widget view: a binder failure shows the
+        // built-in bar this time rather than crashing.
+        val view = runLogged("create search bar widget view") {
+            appWidgetHost.createView(activity.applicationContext, id, info)
+        }.getOrNull()
+        if (view == null) {
+            hostedSearchWidgetId = 0
+            return null
+        }
+        view.setOnLongClickListener { host.onSearchBarWidgetLongPress(slot); true }
+        slot.addView(
+            view,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        hostedSearchWidgetId = id
+        return view
+    }
+
+    // Only widgets that declare themselves search boxes are listed;
+    // anything else in that slot would be the wrong shape.
+    fun showSearchWidgetPicker() {
+        val prefs = viewModel.state.value.prefs
+        val (cellWidth, cellHeight) = host.currentCellSizePx()
+        WidgetPickerSheet.show(
+            activity, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows,
+            filter = { info ->
+                info.widgetCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX != 0
+            },
+            prefs = prefs,
+            onPicked = { info -> bind(info, Target.SearchBar) },
+            icons = WidgetPickerIcons.of(viewModel.appCatalog())
+        )
+    }
+
+    fun restoreBuiltInSearchBar() {
+        val id = viewModel.state.value.prefs.searchBarWidgetId
+        if (id != 0) appWidgetHost.deleteAppWidgetId(id)
+        viewModel.setSearchBarWidget(0, "")
+    }
+
+    // Per-widget padding, as an amount rather than an on/off: the Widget
+    // padding setting (0 by default) sets every
+    // widget's, and this one's can differ. The widget previews the amount as
+    // the bar moves; Default goes back to following the setting.
+    fun showPaddingDialog(item: LauncherItem, widgetView: View) {
+        val params = widgetView.layoutParams as? WorkspaceCanvas.WidgetParams
+        val originalInset = params?.inset
+        val row = com.supernova.launcher.databinding.ItemSettingSliderBinding.inflate(activity.layoutInflater)
+        var value = viewModel.widgetPaddingDp(item)
+        fun preview(dp: Int) {
+            params ?: return
+            params.inset = activity.dp(dp)
+            widgetView.requestLayout()
+        }
+        fun render() {
+            row.settingValue.text = activity.getString(R.string.padding_dp_value, value)
+            row.settingSeek.progress = value
+            preview(value)
+        }
+        row.settingTitle.text = item.label.ifBlank { activity.getString(R.string.widget) }
+        row.settingSeek.max = LauncherRepository.MAX_WIDGET_PADDING_DP
+        row.settingSeek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                value = progress
+                render()
+            }
+
+            override fun onStartTrackingTouch(bar: android.widget.SeekBar) = Unit
+
+            override fun onStopTrackingTouch(bar: android.widget.SeekBar) = Unit
+        })
+        row.stepDown.setOnClickListener {
+            value = (value - 1).coerceAtLeast(0)
+            render()
+        }
+        row.stepUp.setOnClickListener {
+            value = (value + 1).coerceAtMost(LauncherRepository.MAX_WIDGET_PADDING_DP)
+            render()
+        }
+        render()
+        var committed = false
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(R.string.padding)
+            .setView(row.root)
+            .setPositiveButton(R.string.save) { _, _ ->
+                committed = true
+                viewModel.setWidgetPadding(item.id, value)
+            }
+            .setNeutralButton(R.string.option_default) { _, _ ->
+                committed = true
+                preview(viewModel.state.value.prefs.widgetPadding)
+                viewModel.setWidgetPadding(item.id, null)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .setOnDismissListener {
+                // Cancel, back or a tap outside: the preview goes back.
+                if (!committed && params != null && originalInset != null) {
+                    params.inset = originalInset
+                    widgetView.requestLayout()
+                }
+            }
+            .showTracked()
+            .window?.let { window ->
+                // In the half of the screen the widget isn't in, over a light
+                // dim, so the preview stays in view.
+                val location = IntArray(2).also(widgetView::getLocationOnScreen)
+                val widgetCenterY = location[1] + widgetView.height / 2
+                val upperHalf = widgetCenterY < activity.resources.displayMetrics.heightPixels / 2
+                window.setGravity(if (upperHalf) Gravity.BOTTOM else Gravity.TOP)
+                window.setDimAmount(PREVIEW_DIALOG_DIM)
+            }
+    }
+
+    // Overlays a draggable resize frame on top of the widget's host view; the
+    // frame snaps to whole cells and commits the span on release. It stays up
+    // for the next drag, through the commit's rebind (onPageBound), until a
+    // tap on the page's empty space (onCanvasTap), a page change or a home
+    // press takes it down.
+    fun showResizeFrame(item: LauncherItem, widgetView: View) {
+        dismissResizeFrame()
+        // Subgrid positioning resizes in half cells; the frame counts in
+        // those steps.
+        val units = if (viewModel.state.value.prefs.subgrid) 2 else 1
+        fun rect(cellX: Int, cellY: Int, spanX: Int, spanY: Int) = WorkspaceGeometry.CellRect(
+            cellX / units.toFloat(), cellY / units.toFloat(),
+            (cellX + spanX) / units.toFloat(), (cellY + spanY) / units.toFloat()
+        )
+        val frame = WidgetResizeFrame(
+            context = activity,
+            itemId = item.id,
+            // Growth stops at the first neighbouring item, not just the grid edge.
+            roomProvider = { cellX, cellY, spanX, spanY ->
+                val state = viewModel.state.value
+                WorkspaceGeometry.resizeRoom(
+                    state.model, item.page, item.id, rect(cellX, cellY, spanX, spanY), 1f / units,
+                    state.prefs.gridCols, state.prefs.gridRows
+                )
+            },
+            snapDurationMs = Animations.duration(viewModel.state.value.prefs, RESIZE_SNAP_MS),
+            units = units,
+            onCommit = { cellX, cellY, spanX, spanY ->
+                val state = viewModel.state.value
+                val current = state.model.items.firstOrNull { it.id == item.id }
+                val resized = rect(cellX, cellY, spanX, spanY)
+                if (current != null &&
+                    resized != WorkspaceGeometry.itemRect(current, state.prefs.gridCols, state.prefs.gridRows)
+                ) {
+                    viewModel.resizeWidget(item.id, resized) {
+                        // Nothing was saved, so no rebind is coming: the page
+                        // is rebuilt to put the widget, and the frame with it
+                        // (onPageBound), back at the size it has.
+                        host.workspaceAdapter.invalidatePagesWith { it.id == item.id }
+                    }
+                }
+            }
+        )
+        if (anchorResizeFrame(frame, widgetView)) activeResizeFrame = frame
+    }
+
+    // Puts the frame around the widget's host view, on top of its canvas.
+    private fun anchorResizeFrame(frame: WidgetResizeFrame, widgetView: View): Boolean {
+        val canvas = widgetView.parent as? ViewGroup
+        if (canvas == null || !frame.anchor(widgetView)) return false
+        if (frame.parent === canvas) {
+            // The bind has just added the page's items over it.
+            frame.bringToFront()
+        } else {
+            (frame.parent as? ViewGroup)?.removeView(frame)
+            canvas.addView(frame)
+        }
+        return true
+    }
+
+    // Every bind of a page ends here. The open resize frame follows its
+    // widget: re-anchored to the widget's new view and cells when they are on
+    // this canvas, and taken down when the canvas it stood on shows no widget
+    // of its own any more (the widget was removed or moved off the page, or
+    // the canvas now holds another page).
+    fun onPageBound(canvas: ViewGroup) {
+        val frame = activeResizeFrame ?: return
+        val widgetView = canvas.children.firstOrNull {
+            it !is WidgetResizeFrame && it.getTag(R.id.tag_item_id) == frame.itemId
+        }
+        val item = viewModel.state.value.model.items.firstOrNull { it.id == frame.itemId }
+        if (widgetView != null && item != null && anchorResizeFrame(frame, widgetView)) return
+        if (frame.parent === canvas) dismissResizeFrame()
+    }
+
+    // Takes the resize frame down. Returns whether one was up.
+    fun dismissResizeFrame(): Boolean {
+        val frame = activeResizeFrame ?: return false
+        activeResizeFrame = null
+        (frame.parent as? ViewGroup)?.removeView(frame)
+        return true
+    }
+
+    fun reportWidgetSize(item: LauncherItem, view: View) {
+        val widgetId = item.appWidgetId ?: return
+        val hostView = view as? AppWidgetHostView ?: return
+        if (view.width <= 0 || view.height <= 0) return
+        val size = SizeF(view.width.toFloat(), view.height.toFloat())
+        if (lastReportedSizes[widgetId] == size) return
+        lastReportedSizes[widgetId] = size
+        WidgetSizing.reportSize(hostView, view.width, view.height, activity.resources.displayMetrics.density)
+    }
+
+    // The one AppWidgetHostView factory: workspace items and feed cards both
+    // host through it so the activity.applicationContext inflation constraint and the
+    // corner clip apply everywhere.
+    private fun createWidgetHostView(widgetId: Int, info: AppWidgetProviderInfo): AppWidgetHostView? {
+        val hostView: AppWidgetHostView = runLogged("create widget view") {
+            // Never the activity context: AppCompat installs an inflater
+            // factory that rewrites ImageView into AppCompatImageView, and
+            // RemoteViews then refuses reflected calls on the substituted
+            // class ("can't use method with RemoteViews") - which broke every
+            // Glance-based widget. The application context has no factory.
+            appWidgetHost.createView(activity.applicationContext, widgetId, info)
+        }.getOrNull() ?: return null
+        // Each update's layout inflates off the main thread and is then
+        // applied on it, as Launcher3 hosts them. Without an executor every
+        // update inflated on the main thread, and the updates queued while
+        // away all landed in onStart, on the Home press.
+        hostView.setExecutor(WIDGET_INFLATION)
+        applyWidgetCornerRadius(hostView)
+        return hostView
+    }
+
+    fun buildWidgetView(item: LauncherItem): View {
+        val widgetId = item.appWidgetId ?: return fallbackWidgetView(item)
+        val hostView = widgetHostViews[widgetId]?.also(::applyWidgetCornerRadius)
+            ?: run {
+                val info = appWidgetManager.getAppWidgetInfo(widgetId) ?: return fallbackWidgetView(item)
+                createWidgetHostView(widgetId, info)?.also { widgetHostViews[widgetId] = it }
+                    ?: return fallbackWidgetView(item)
+            }
+        // Rebound every bind: the closure must see the item's current cell
+        // and spans, not the ones from when the view was first created.
+        hostView.setOnLongClickListener { v ->
+            host.onWidgetLongPress(v, item)
+            true
+        }
+        return hostView
+    }
+
+    // Changes propagate like widgetPadding: the pref is part of the page
+    // signature, so bound widgets rebuild through here on the next emission.
+    // Our host-view subclass re-asserts the clip after every RemoteViews
+    // update, because API 31+ replaces a one-time outline with the
+    // framework's own rounded-corner enforcement.
+    private fun applyWidgetCornerRadius(hostView: View) {
+        val radiusDp = viewModel.state.value.prefs.widgetCornerRadius
+        if (hostView is com.supernova.launcher.widget.SupernovaWidgetHostView) {
+            hostView.cornerRadiusPx = if (radiusDp > 0) activity.dp(radiusDp).toFloat() else 0f
+            return
+        }
+        if (radiusDp > 0) {
+            hostView.outlineProvider = RoundedOutlineProvider(activity.dp(radiusDp).toFloat())
+            hostView.clipToOutline = true
+        } else {
+            hostView.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+            hostView.clipToOutline = false
+        }
+    }
+
+    private class RoundedOutlineProvider(private val radiusPx: Float) : android.view.ViewOutlineProvider() {
+        override fun getOutline(view: View, outline: android.graphics.Outline) {
+            outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+        }
+    }
+
+    // A widget with no live id: its name, and if its provider is installed, a
+    // tap to bind it again through the normal add flow, which asks for the
+    // bind permission and runs the widget's own setup where it needs them.
+    private fun fallbackWidgetView(item: LauncherItem): View {
+        val info = installedProvider(item.widgetProvider, item.userSerial)
+        return TextView(activity).apply {
+            setBackgroundResource(R.drawable.bg_widget_fallback)
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            val padding = activity.dp(FALLBACK_PADDING_DP)
+            setPadding(padding, padding, padding, padding)
+            text = if (info != null) {
+                activity.getString(R.string.widget_finish_setup, item.label)
+            } else {
+                item.label
+            }
+            info?.let { provider ->
+                setOnClickListener { bind(provider, Target.Restored(item.id)) }
+            }
+            setOnLongClickListener { v ->
+                host.onWidgetLongPress(v, item)
+                true
+            }
+        }
+    }
+
+    // Looked up in the widget's own profile: a work widget's provider isn't
+    // among the personal ones.
+    private fun installedProvider(provider: String?, userSerial: Long = 0L): AppWidgetProviderInfo? {
+        val component = provider?.let(ComponentName::unflattenFromString) ?: return null
+        val user = viewModel.appCatalog().userForSerial(userSerial) ?: android.os.Process.myUserHandle()
+        return runCatching { appWidgetManager.getInstalledProvidersForProfile(user) }.getOrNull()
+            ?.firstOrNull { it.provider == component }
+    }
+
+    private fun serialOf(user: android.os.UserHandle?): Long =
+        user?.let { activity.getSystemService(android.os.UserManager::class.java)?.getSerialNumberForUser(it) } ?: 0L
+
+    // Widgets and cards a restore left without a live id get a new one where
+    // that takes no asking: the bind permission held, no setup screen needed.
+    // The rest wait on their placeholder's tap. Once per item a session, as a
+    // refused bind stays refused.
+    fun rebindRestoredWidgets(model: LauncherModel) {
+        model.items
+            .filter { it.itemType == ItemType.WIDGET && it.appWidgetId == null }
+            .forEach { item ->
+                rebindSilently(item.id, item.widgetProvider, item.userSerial) { viewModel.setWidgetId(item.id, it) }
+            }
+        model.feedCards
+            .filter { FeaturedType.fromName(it.featuredType) == FeaturedType.WIDGET && it.appWidgetId == null }
+            .forEach { card ->
+                val provider = card.widgetProvider.orEmpty()
+                rebindSilently(card.id, provider) { viewModel.setCardWidget(card.id, it, provider) }
+            }
+    }
+
+    private fun rebindSilently(key: String, provider: String?, userSerial: Long = 0L, onBound: (Int) -> Unit) {
+        val info = if (rebindsTried.add(key)) installedProvider(provider, userSerial) else null
+        if (info == null || WidgetFeatures.needsSetup(info)) return
+        val widgetId = appWidgetHost.allocateAppWidgetId()
+        // Not swept away before the model has it.
+        reboundIds += widgetId
+        val bound = runCatching {
+            appWidgetManager.bindAppWidgetIdIfAllowed(widgetId, info.profile, info.provider, null)
+        }.getOrDefault(false)
+        if (bound) onBound(widgetId) else appWidgetHost.deleteAppWidgetId(widgetId)
+    }
+
+
+    // The popup-menu "Widgets" row: the same picker narrowed to one app.
+    fun showPickerFor(packageName: String?) {
+        packageName ?: return
+        val prefs = viewModel.state.value.prefs
+        val (cellWidth, cellHeight) = host.currentCellSizePx()
+        WidgetPickerSheet.show(
+            activity, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows,
+            filterPackage = packageName, prefs = prefs, onPicked = ::onWidgetPicked,
+            onPickShortcut = host::pickShortcutTarget,
+            icons = WidgetPickerIcons.of(viewModel.appCatalog())
+        )
+    }
+
+    // A widget picked for the current page: bound at its first free area.
+    fun onWidgetPicked(info: AppWidgetProviderInfo) {
+        val prefs = viewModel.state.value.prefs
+        val page = viewModel.state.value.currentPage
+        val (cellWidth, cellHeight) = host.currentCellSizePx()
+        val spans = WidgetSizing.defaultSpans(activity, info, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows)
+
+        // Widgets need a free area of their real span, found before any id is
+        // allocated so cancelling costs nothing: this page, else the next
+        // with room, else a new one.
+        TappedPlacement.place(viewModel, page, spans.first, spans.second) { spot ->
+            bind(info, Target.Workspace(spot.page, spot.cellX, spot.cellY))
+        }
+    }
+
+    // Widget-featured custom card: bind into the card instead of a cell.
+    fun bindToCard(info: AppWidgetProviderInfo, cardId: String) {
+        bind(info, Target.Card(cardId))
+    }
+
+    fun bind(info: AppWidgetProviderInfo, target: Target) {
+        val prefs = viewModel.state.value.prefs
+        val (cellWidth, cellHeight) = host.currentCellSizePx()
+        val spans = WidgetSizing.defaultSpans(activity, info, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows)
+        val widgetId = appWidgetHost.allocateAppWidgetId()
+        pendingWidget = PendingWidget(widgetId, info.provider, target)
+        WidgetAddTrail.start(widgetId, info.provider.flattenToShortString())
+
+        val options = WidgetSizing.initialBindOptions(
+            spans.first, spans.second, cellWidth, cellHeight, activity.resources.displayMetrics.density
+        )
+        val bound = runCatching {
+            appWidgetManager.bindAppWidgetIdIfAllowed(widgetId, info.profile, info.provider, options)
+        }.getOrDefault(false)
+
+        if (bound) {
+            WidgetAddTrail.step("bound")
+            proceedToConfigure(info)
+            return
+        }
+        WidgetAddTrail.step("asking to allow")
+        // Some builds ship without the system's "allow widgets" screen.
+        val asked = runCatching {
+            bindWidgetLauncher.launch(
+                Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
+                }
+            )
+        }
+        if (asked.isFailure) {
+            WidgetAddTrail.step("no allow screen: ${asked.exceptionOrNull()}")
+            WidgetAddTrail.fail("allow screen would not open", launcherState())
+            abortPendingWidget()
+            Toast.makeText(activity, R.string.widget_bind_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // The picker over a card's editor: the pick goes back to the editor, which
+    // saves the card and then binds (bindToCard).
+    fun showPickerForCard(onPicked: (AppWidgetProviderInfo) -> Unit) {
+        val prefs = viewModel.state.value.prefs
+        val (cellWidth, cellHeight) = host.currentCellSizePx()
+        WidgetPickerSheet.show(
+            activity, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows,
+            prefs = prefs, onPicked = onPicked,
+            icons = WidgetPickerIcons.of(viewModel.appCatalog())
+        )
+    }
+
+    private fun proceedToConfigure(info: AppWidgetProviderInfo) {
+        val pending = pendingWidget ?: return
+        if (!WidgetFeatures.needsSetup(info)) {
+            WidgetAddTrail.step("no setup screen")
+            finalizeWidget()
+            return
+        }
+        setupOpenedAt = SystemClock.elapsedRealtime()
+
+        // Preferred path: the host launches configure with a system permission
+        // token, which also works for non-exported configure activities. Its
+        // result arrives in onActivityResult (the host API predates contracts).
+        val tokenLaunch = runCatching {
+            appWidgetHost.startAppWidgetConfigureActivityForResult(
+                activity, pending.widgetId, 0, REQUEST_CONFIGURE_WIDGET, PendingStarts.options()
+            )
+        }
+        if (tokenLaunch.isSuccess) {
+            WidgetAddTrail.step("setup screen opened")
+            return
+        }
+        WidgetAddTrail.step("setup screen refused the system launch: ${tokenLaunch.exceptionOrNull()}")
+
+        val plainLaunch = runCatching {
+            configureWidgetLauncher.launch(
+                Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                    component = info.configure
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pending.widgetId)
+                }
+            )
+        }
+        if (plainLaunch.isSuccess) {
+            WidgetAddTrail.step("setup screen opened directly")
+            return
+        }
+        WidgetAddTrail.step("setup screen refused a direct launch: ${plainLaunch.exceptionOrNull()}")
+
+        WidgetAddTrail.fail("setup screen would not open", launcherState())
+        abortPendingWidget()
+        Toast.makeText(activity, R.string.widget_configure_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    // The configure screen launched with the host's token answers through the
+    // activity's onActivityResult (the host API predates contracts). True
+    // when the result was this flow's.
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean = when (requestCode) {
+        REQUEST_CONFIGURE_WIDGET -> {
+            handleConfigureResult(resultCode, data)
+            true
+        }
+        // A placed widget's settings change only the widget itself: it
+        // stays whatever the screen answers.
+        REQUEST_RECONFIGURE_WIDGET -> true
+        else -> false
+    }
+
+    fun isReconfigurable(item: LauncherItem): Boolean =
+        item.appWidgetId?.let(appWidgetManager::getAppWidgetInfo)?.let(WidgetFeatures::reconfigurable) == true
+
+    fun openWidgetSettings(item: LauncherItem) {
+        val widgetId = item.appWidgetId ?: return
+        val opened = runCatching {
+            appWidgetHost.startAppWidgetConfigureActivityForResult(
+                activity, widgetId, 0, REQUEST_RECONFIGURE_WIDGET, PendingStarts.options()
+            )
+        }.isSuccess
+        if (!opened) Toast.makeText(activity, R.string.widget_configure_failed, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun handleConfigureResult(resultCode: Int, data: Intent?) {
+        WidgetAddTrail.step("setup screen answered ${WidgetAddTrail.answer(resultCode)}")
+        if (pendingWidget == null) {
+            WidgetAddTrail.fail("interrupted at the setup screen", launcherState(resultCode, data))
+            deleteWidgetIdFromResult(data)
+            Toast.makeText(activity, R.string.widget_add_interrupted, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (resultCode == Activity.RESULT_OK) {
+            finalizeWidget()
+        } else {
+            // Closing it is the user's call; closing on its own before anyone
+            // could have touched it is a setup screen (or a system) refusing.
+            val openFor = SystemClock.elapsedRealtime() - setupOpenedAt
+            if (setupOpenedAt != 0L && openFor < QUICK_SETUP_CANCEL_MS) {
+                WidgetAddTrail.fail("setup screen closed at once", launcherState(resultCode, data))
+            }
+            abortPendingWidget()
+        }
+    }
+
+    // This screen's side of a failed add, plus the answer that found it.
+    private fun launcherState(resultCode: Int? = null, data: Intent? = null): String = buildString {
+        append("screen ").append((SystemClock.elapsedRealtime() - createdAt) / MS_PER_S).append("s old, ")
+        append(pendingFrom)
+        pendingWidget?.let { append(", waiting for id ").append(it.widgetId) }
+        if (resultCode != null) append(", answer ").append(WidgetAddTrail.answer(resultCode))
+        data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)?.takeIf { it > 0 }?.let { id ->
+            append(" for id ").append(id)
+            append(" (").append(appWidgetManager.getAppWidgetInfo(id)?.provider?.flattenToShortString() ?: "unbound")
+            append(')')
+        }
+    }
+
+    // A process started for the answer has not decoded the layout yet, and
+    // its grid and free cells would be the defaults.
+    private fun finalizeWidget() {
+        val pending = pendingWidget ?: return
+        if (viewModel.state.value.loaded) {
+            finalizeLoaded(pending)
+        } else {
+            activity.lifecycleScope.launch {
+                viewModel.state.first { it.loaded }
+                if (pendingWidget === pending) finalizeLoaded(pending)
+            }
+        }
+    }
+
+    private fun finalizeLoaded(pending: PendingWidget) {
+        val info = appWidgetManager.getAppWidgetInfo(pending.widgetId)
+        if (info == null) {
+            WidgetAddTrail.fail("provider gone before placing", launcherState())
+            abortPendingWidget()
+            Toast.makeText(activity, R.string.widget_provider_missing, Toast.LENGTH_SHORT).show()
+            return
+        }
+        WidgetAddTrail.step("placed")
+        when (val target = pending.target) {
+            is Target.Workspace -> {
+                val prefs = viewModel.state.value.prefs
+                val (cellWidth, cellHeight) = host.currentCellSizePx()
+                val spans = WidgetSizing.defaultSpans(activity, info, cellWidth, cellHeight, prefs.gridCols, prefs.gridRows)
+                viewModel.addWidget(
+                    page = target.page,
+                    cellX = target.cellX,
+                    cellY = target.cellY,
+                    appWidgetId = pending.widgetId,
+                    provider = info.provider?.flattenToString().orEmpty(),
+                    label = info.loadLabel(activity.packageManager)?.toString().orEmpty().ifBlank { activity.getString(R.string.widget) },
+                    spanX = spans.first,
+                    spanY = spans.second,
+                    displace = target.displace,
+                    userSerial = serialOf(info.profile)
+                )
+            }
+            is Target.Restored -> viewModel.setWidgetId(target.itemId, pending.widgetId)
+            is Target.Card -> {
+                viewModel.setCardWidget(
+                    target.cardId, pending.widgetId, info.provider?.flattenToString().orEmpty()
+                )
+            }
+            Target.SearchBar -> {
+                // The old stand-in is dropped only once the new one is bound,
+                // so a cancelled pick leaves the bar as it was.
+                val previous = viewModel.state.value.prefs.searchBarWidgetId
+                if (previous != 0 && previous != pending.widgetId) {
+                    appWidgetHost.deleteAppWidgetId(previous)
+                }
+                viewModel.setSearchBarWidget(
+                    pending.widgetId, info.provider?.flattenToString().orEmpty()
+                )
+            }
+        }
+        reboundIds += pending.widgetId
+        pendingWidget = null
+    }
+
+    private fun abortPendingWidget() {
+        pendingWidget?.widgetId?.let(appWidgetHost::deleteAppWidgetId)
+        pendingWidget = null
+    }
+
+    private fun deleteWidgetIdFromResult(data: Intent?) {
+        data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+            ?.takeIf { it > 0 }
+            ?.let(appWidgetHost::deleteAppWidgetId)
+    }
+
+    companion object {
+        private const val REQUEST_CONFIGURE_WIDGET = 4001
+        private const val REQUEST_RECONFIGURE_WIDGET = 4002
+        private const val PENDING_WIDGET_STATE = "supernova:pending_widget"
+        // A setup screen that answers "cancel" sooner than this closed itself.
+        private const val QUICK_SETUP_CANCEL_MS = 1500L
+        private const val MS_PER_S = 1000
+        // Widget resize: each snap to a new cell edge eases there.
+        private const val RESIZE_SNAP_MS = 120L
+        // The dim behind the padding dialog, which previews on the home screen.
+        private const val PREVIEW_DIALOG_DIM = 0.15f
+        private const val FALLBACK_PADDING_DP = 8
+
+        // One thread for every host view's inflation, shared by the activity
+        // instances a recreate makes.
+        private val WIDGET_INFLATION: java.util.concurrent.Executor =
+            java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+                Thread(task, "widget-inflate").apply { isDaemon = true }
+            }
+    }
+}

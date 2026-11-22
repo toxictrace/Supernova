@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A shortcut row under an expanded app: a CREATE_SHORTCUT entry, a
+     launcher action, or the Activities picker. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="@dimen/space_ms"
+    android:layout_marginBottom="@dimen/space_xs"
+    android:background="@drawable/bg_picker_card"
+    android:foreground="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="@dimen/space_ml"
+    android:paddingVertical="@dimen/space_ms">
+
+    <ImageView
+        android:id="@+id/shortcutIcon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_ml"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <com.supernova.launcher.ui.FadingTextView
+            android:id="@+id/shortcutLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textColor="@color/textPrimary"
+            android:textSize="@dimen/text_body" />
+
+        <TextView
+            android:id="@+id/shortcutSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/textSecondary"
+            android:textSize="@dimen/text_caption" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An app in a group, on the Drawer groups pages: its icon over its name.
+     A cell of the tab bar preview's row and of a group's Apps grid. The
+     icon is a view of its own: a compound drawable takes the drawable's
+     size, and these are drawn at 48dp whatever theirs is. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    tools:ignore="UseCompoundDrawables">
+
+    <ImageView
+        android:id="@+id/appIcon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/appLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_sm"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
+        android:paddingHorizontal="@dimen/space_xxs"
+        android:textColor="@color/settingsTextSecondary"
+        android:textSize="@dimen/text_caption" />
+</LinearLayout>

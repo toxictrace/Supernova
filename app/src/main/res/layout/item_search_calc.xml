@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Calculator result card; tap copies the value. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="@dimen/space_md"
+    android:layout_marginVertical="@dimen/space_sm"
+    android:background="@drawable/bg_search_card"
+    android:foreground="@drawable/ripple_icon"
+    android:orientation="vertical"
+    android:paddingHorizontal="@dimen/space_ml"
+    android:paddingVertical="@dimen/space_md">
+
+    <com.supernova.launcher.ui.FadingTextView
+        android:id="@+id/calcExpression"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:textColor="@color/textSecondary"
+        android:textSize="@dimen/text_secondary" />
+
+    <com.supernova.launcher.ui.FadingTextView
+        android:id="@+id/calcResult"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:textColor="@color/textPrimary"
+        android:textSize="@dimen/text_headline"
+        android:textStyle="bold" />
+</LinearLayout>

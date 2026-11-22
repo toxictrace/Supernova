@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Section label ("Search with", "Recent searches"), plain 16sp. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/headerLabel"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="@dimen/space_lg"
+    android:paddingTop="@dimen/space_ml"
+    android:paddingBottom="@dimen/space_sm"
+    android:textColor="@color/textPrimary"
+    android:textSize="@dimen/text_body" />

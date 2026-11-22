@@ -1,0 +1,127 @@
+package com.supernova.launcher.ui
+
+import android.appwidget.AppWidgetProviderInfo
+import android.view.LayoutInflater
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.supernova.launcher.R
+import com.supernova.launcher.databinding.SheetWidgetPickerBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.os.Build
+
+// The standalone add-widget sheet (the popup menu's per-app "Widgets" row).
+// The home edit mode hosts the same adapter in an in-activity sheet.
+object WidgetPickerSheet {
+
+    fun show(
+        activity: AppCompatActivity,
+        cellWidthPx: Int,
+        cellHeightPx: Int,
+        cols: Int,
+        rows: Int,
+        // Non-null narrows the sheet to one app (the popup-menu "Widgets"
+        // row); the empty state then means "this app has none".
+        filterPackage: String? = null,
+        // Narrows the list further (Replace offers search widgets only).
+        filter: ((AppWidgetProviderInfo) -> Boolean)? = null,
+        // Current prefs, for the drawer surface color the sheet wears.
+        prefs: com.supernova.launcher.data.LauncherPrefs,
+        onPicked: (AppWidgetProviderInfo) -> Unit,
+        onPickShortcut: ((ShortcutTarget) -> Unit)? = null,
+        // How the sheet draws its icons; the launcher's own customizations.
+        icons: WidgetPickerIcons = WidgetPickerIcons()
+    ) {
+        val binding = SheetWidgetPickerBinding.inflate(LayoutInflater.from(activity))
+        val dialog = BottomSheetDialog(activity)
+        OpenDialogs.track(dialog)
+        dialog.setContentView(binding.root)
+        // Drawer surface on the sheet, and the dialog's nav bar painted to
+        // match so the sheet appears to run under it. Opaque, whatever the
+        // drawer's transparency: the home screen showing through made the
+        // list unreadable.
+        val surface = androidx.core.graphics.ColorUtils.setAlphaComponent(
+            com.supernova.launcher.ui.theme.Styles.resolve(activity, prefs)
+                .of(com.supernova.launcher.ui.theme.SurfaceId.DRAWER).surface,
+            OPAQUE
+        )
+        (binding.root.background?.mutate() as? android.graphics.drawable.GradientDrawable)?.setColor(surface)
+        dialog.window?.let { window ->
+            // Contrast scrim control is Android 10+; Android 9 keeps its default.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
+            window.navigationBarColor = surface
+        }
+
+        val adapter = WidgetPickerAdapter(
+            onPickWidget = { info ->
+                dialog.dismiss()
+                onPicked(info)
+            },
+            onPickShortcut = { target ->
+                dialog.dismiss()
+                onPickShortcut?.invoke(target)
+            }
+        )
+        binding.widgetPickerRecycler.layoutManager = LinearLayoutManager(activity)
+        binding.widgetPickerRecycler.adapter = adapter
+        binding.widgetPickerRecycler.itemAnimator = null
+
+        // A single-app picker has nothing to browse; hide search and start
+        // expanded. The general picker is searchable and starts collapsed.
+        val singleApp = filterPackage != null
+        binding.widgetSearch.visibility = if (singleApp) View.GONE else View.VISIBLE
+        binding.widgetSearch.doAfterTextChanged { adapter.filter(it?.toString().orEmpty()) }
+        sayNoMatches(activity, binding, adapter)
+        // Searching opens the sheet fully, above the keyboard.
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        binding.widgetSearch.setOnFocusChangeListener { _, focused ->
+            if (focused) dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+        }
+
+        activity.lifecycleScope.launch {
+            // The launcher's own actions are not search widgets either. Its
+            // row heads the list, so it shows at once while the apps load.
+            val own = if (singleApp || filter != null) null
+            else withContext(Dispatchers.Default) { WidgetPickerGroups.launcherGroup(activity, icons) }
+            own?.let { adapter.submit(listOf(it), expandAll = false) }
+            val groups = withContext(Dispatchers.Default) {
+                listOfNotNull(own) + WidgetPickerGroups.build(
+                    activity, cellWidthPx, cellHeightPx, cols, rows, filterPackage, filter, icons
+                )
+            }
+            if (groups.isEmpty()) {
+                binding.widgetPickerEmpty.visibility = View.VISIBLE
+                binding.widgetSearch.visibility = View.GONE
+            }
+            adapter.submit(groups, expandAll = singleApp)
+        }
+
+        dialog.show()
+    }
+
+    // A search that found nothing says so, in the line an empty picker uses.
+    private fun sayNoMatches(
+        activity: AppCompatActivity,
+        binding: SheetWidgetPickerBinding,
+        adapter: WidgetPickerAdapter
+    ) {
+        adapter.onNoMatches = { none ->
+            if (!adapter.isEmpty) {
+                binding.widgetPickerEmpty.text = activity.getString(
+                    R.string.widget_search_no_matches, binding.widgetSearch.text.toString().trim()
+                )
+                binding.widgetPickerEmpty.visibility = if (none) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private const val OPAQUE = 0xFF
+}

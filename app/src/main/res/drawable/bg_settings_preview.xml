@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A section's pinned preview card. The pane clips to it, so the Home
+     screen's wallpaper shows through rounded corners too. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="20dp" />
+    <solid android:color="@color/settingsPillBg" />
+</shape>
