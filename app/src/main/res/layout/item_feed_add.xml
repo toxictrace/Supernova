@@ -24,13 +24,17 @@
     <TextView
         android:id="@+id/feedSettings"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_weight="1"
         android:layout_marginStart="@dimen/space_sm"
-        android:minHeight="48dp"
         android:background="@drawable/ripple_icon"
         android:gravity="center"
         android:paddingHorizontal="4dp"
+        android:maxLines="1"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="12sp"
+        android:autoSizeMaxTextSize="@dimen/text_body"
+        android:autoSizeStepGranularity="1sp"
         android:text="@string/feed_settings"
         android:textSize="@dimen/text_body" />
 </LinearLayout>
