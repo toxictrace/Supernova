@@ -14,8 +14,8 @@ import android.os.RemoteException
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import amirz.aidlbridge.IBridge
-import amirz.aidlbridge.IBridgeCallback
+import com.supernova.googlecompanion.bridge.IDiscoverBridge
+import com.supernova.googlecompanion.bridge.IDiscoverBridgeCallback
 import com.google.android.libraries.launcherclient.ILauncherOverlay
 import com.google.android.libraries.launcherclient.ILauncherOverlayCallback
 import kotlin.math.abs
@@ -36,9 +36,10 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var destroyed = false
     private var bound = false
     private var retryBlocked = false
+    private var companionInstalled = companionPackageInstalled()
     private var attached = false
     private var windowAttached = false
-    private var bridge: IBridge? = null
+    private var bridge: IDiscoverBridge? = null
     private var overlay: ILauncherOverlay? = null
     private var apiVersion = 1
 
@@ -56,7 +57,7 @@ class GoogleDiscoverController(private val activity: Activity) {
         }
     }
 
-    private val bridgeCallback = object : IBridgeCallback.Stub() {
+    private val bridgeCallback = object : IDiscoverBridgeCallback.Stub() {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             activity.runOnUiThread {
                 if (destroyed || !enabled) return@runOnUiThread
@@ -80,7 +81,7 @@ class GoogleDiscoverController(private val activity: Activity) {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            bridge = IBridge.Stub.asInterface(service)
+            bridge = IDiscoverBridge.Stub.asInterface(service)
             try {
                 bridge?.bindService(
                     bridgeCallback,
@@ -132,6 +133,22 @@ class GoogleDiscoverController(private val activity: Activity) {
     fun onResume() {
         if (destroyed) return
         resumed = true
+
+        val installedNow = companionPackageInstalled()
+        if (installedNow != companionInstalled) {
+            companionInstalled = installedNow
+            retryBlocked = false
+            if (!installedNow) {
+                disconnect()
+                Log.i(TAG, "Google Companion was removed")
+            } else {
+                Log.i(TAG, "Google Companion was installed; retrying bridge connection")
+            }
+        }
+
+        if (enabled && started && installedNow && !bound && !retryBlocked) {
+            connect()
+        }
         updateActivityState()
     }
 
@@ -251,6 +268,12 @@ class GoogleDiscoverController(private val activity: Activity) {
         scrolling = false
         runCatching { overlay?.endScroll() }
             .onFailure { Log.w(TAG, "Unable to finish Google Discover swipe", it) }
+    }
+
+    private fun companionPackageInstalled(): Boolean {
+        return runCatching {
+            activity.packageManager.getPackageInfo(BRIDGE_PACKAGE, 0)
+        }.isSuccess
     }
 
     private fun connect() {

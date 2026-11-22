@@ -1,4 +1,4 @@
-package amirz.aidlbridge;
+package com.supernova.googlecompanion.bridge;
 
 import android.app.Service;
 import android.content.Intent;
@@ -10,11 +10,11 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Exported AIDLBridge endpoint used only by the Supernova launcher package. */
-public final class BridgeService extends Service {
+/** Exported AIDL endpoint used only by the Supernova launcher package. */
+public final class DiscoverBridgeService extends Service {
     private static final String TAG = "SupernovaDiscoverBridge";
     private static final String LAUNCHER_PACKAGE = "com.supernova.launcher";
-    private final Map<Intent, BridgeImpl> bridges = new HashMap<>();
+    private final Map<Intent, DiscoverBridgeImpl> bridges = new HashMap<>();
 
     @Override
     public synchronized IBinder onBind(Intent intent) {
@@ -56,9 +56,9 @@ public final class BridgeService extends Service {
             return null;
         }
 
-        BridgeImpl bridge = bridges.get(intent);
+        DiscoverBridgeImpl bridge = bridges.get(intent);
         if (bridge == null) {
-            bridge = new BridgeImpl(getApplicationContext(), intent, callerUid);
+            bridge = new DiscoverBridgeImpl(getApplicationContext(), intent, callerUid);
             bridges.put(new Intent(intent), bridge);
         }
         return bridge;
@@ -66,14 +66,14 @@ public final class BridgeService extends Service {
 
     @Override
     public synchronized boolean onUnbind(Intent intent) {
-        BridgeImpl bridge = bridges.remove(intent);
+        DiscoverBridgeImpl bridge = bridges.remove(intent);
         if (bridge != null) bridge.disconnect();
         return super.onUnbind(intent);
     }
 
     @Override
     public synchronized void onDestroy() {
-        for (BridgeImpl bridge : bridges.values()) bridge.disconnect();
+        for (DiscoverBridgeImpl bridge : bridges.values()) bridge.disconnect();
         bridges.clear();
         super.onDestroy();
     }

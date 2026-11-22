@@ -1,9 +1,9 @@
-package amirz.aidlbridge;
+package com.supernova.googlecompanion.bridge;
 
 import android.content.ComponentName;
 import android.os.IBinder;
 
-interface IBridgeCallback {
+interface IDiscoverBridgeCallback {
     void onServiceConnected(in ComponentName name, in IBinder service);
     void onServiceDisconnected(in ComponentName name);
 }

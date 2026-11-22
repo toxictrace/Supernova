@@ -1,4 +1,4 @@
-package amirz.aidlbridge;
+package com.supernova.googlecompanion.bridge;
 
 import android.os.Binder;
 import android.os.IBinder;
@@ -6,10 +6,10 @@ import android.os.Parcel;
 import android.os.RemoteException;
 
 /** Forwards the private launcher-overlay Binder protocol without changing transactions. */
-final class TransactProxy extends Binder {
+final class BinderTransactionProxy extends Binder {
     private final IBinder target;
 
-    TransactProxy(IBinder target) {
+    BinderTransactionProxy(IBinder target) {
         this.target = target;
     }
 

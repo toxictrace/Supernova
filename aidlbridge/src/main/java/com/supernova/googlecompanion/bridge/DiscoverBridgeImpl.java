@@ -1,4 +1,4 @@
-package amirz.aidlbridge;
+package com.supernova.googlecompanion.bridge;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -15,7 +15,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** Connects to Google App using the bridge package identity. */
-final class BridgeImpl extends IBridge.Stub {
+final class DiscoverBridgeImpl extends IDiscoverBridge.Stub {
     private static final String TAG = "SupernovaDiscoverBridge";
 
     private final Context context;
@@ -23,7 +23,7 @@ final class BridgeImpl extends IBridge.Stub {
     private final int expectedCallerUid;
     private final Set<ServiceConnection> connections = new HashSet<>();
 
-    BridgeImpl(Context context, Intent launcherIntent, int expectedCallerUid) {
+    DiscoverBridgeImpl(Context context, Intent launcherIntent, int expectedCallerUid) {
         this.context = context;
         this.expectedCallerUid = expectedCallerUid;
 
@@ -38,7 +38,7 @@ final class BridgeImpl extends IBridge.Stub {
     }
 
     @Override
-    public void bindService(final IBridgeCallback callback, int flags) {
+    public void bindService(final IDiscoverBridgeCallback callback, int flags) {
         if (Binder.getCallingUid() != expectedCallerUid) {
             Log.w(TAG, "Rejected bridge request from unexpected UID");
             return;
@@ -53,7 +53,7 @@ final class BridgeImpl extends IBridge.Stub {
                 connected = true;
                 Log.i(TAG, "Connected to Google overlay: " + name.flattenToShortString());
                 try {
-                    callback.onServiceConnected(name, new TransactProxy(service));
+                    callback.onServiceConnected(name, new BinderTransactionProxy(service));
                 } catch (RemoteException error) {
                     Log.w(TAG, "Unable to deliver Google overlay Binder", error);
                 }
@@ -93,7 +93,7 @@ final class BridgeImpl extends IBridge.Stub {
         }
     }
 
-    private static void notifyDisconnected(IBridgeCallback callback, ComponentName name) {
+    private static void notifyDisconnected(IDiscoverBridgeCallback callback, ComponentName name) {
         try {
             callback.onServiceDisconnected(name);
         } catch (RemoteException error) {
