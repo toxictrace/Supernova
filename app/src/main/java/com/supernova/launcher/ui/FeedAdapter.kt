@@ -315,6 +315,8 @@ class FeedAdapter(
                 ?.setColor((0x29 shl 24) or (paneTextColor and 0xFFFFFF))
             binding.feedAddCard.setTextColor(paneTextColor)
             binding.feedAddCard.setOnClickListener { callbacks.onAddCard() }
+            (binding.feedSettings.background?.mutate() as? GradientDrawable)
+                ?.setColor((0x29 shl 24) or (paneTextColor and 0xFFFFFF))
             binding.feedSettings.setTextColor(paneTextColor)
             binding.feedSettings.setOnClickListener { callbacks.onFeedSettings() }
         }
