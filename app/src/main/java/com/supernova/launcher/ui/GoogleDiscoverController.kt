@@ -33,6 +33,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var resumed = false
     private var destroyed = false
     private var bound = false
+    private var retryBlocked = false
     private var attached = false
     private var windowAttached = false
     private var overlay: ILauncherOverlay? = null
@@ -69,17 +70,18 @@ class GoogleDiscoverController(private val activity: Activity) {
         }
 
         override fun onBindingDied(name: ComponentName) {
-            bindingFailed("binding died")
+            bindingFailed("binding died", name)
         }
 
         override fun onNullBinding(name: ComponentName) {
-            bindingFailed("null binding")
+            bindingFailed("null binding", name)
         }
     }
 
     fun setEnabled(value: Boolean) {
         if (enabled == value || destroyed) return
         enabled = value
+        retryBlocked = false
         if (value) {
             if (started) connect()
         } else {
@@ -220,12 +222,32 @@ class GoogleDiscoverController(private val activity: Activity) {
     }
 
     private fun connect() {
-        if (!enabled || !started || destroyed || bound) return
+        if (!enabled || !started || destroyed || bound || retryBlocked) return
         val intent = serviceIntent()
-        apiVersion = runCatching {
+        val resolved = runCatching {
             activity.packageManager.resolveService(intent, PackageManager.GET_META_DATA)
-                ?.serviceInfo?.metaData?.getInt("service.api.version", 1) ?: 1
-        }.getOrDefault(1)
+        }.onFailure {
+            Log.w(TAG, "Unable to resolve Google overlay service", it)
+        }.getOrNull()
+        val serviceInfo = resolved?.serviceInfo
+        apiVersion = serviceInfo?.metaData?.getInt("service.api.version", 1) ?: 1
+
+        val googleAppVersion = runCatching {
+            val info = activity.packageManager.getPackageInfo(GOOGLE_PACKAGE, 0)
+            "${info.versionName} (${info.longVersionCode})"
+        }.getOrElse { "unavailable: ${it.javaClass.simpleName}" }
+        Log.i(
+            TAG,
+            "Google app=$googleAppVersion; intent action=${intent.action}, " +
+                "package=${intent.getPackage()}, data=${intent.data}"
+        )
+        Log.i(
+            TAG,
+            "Overlay resolve: component=${resolved?.resolvePackageName}/${serviceInfo?.name}, " +
+                "permission=${serviceInfo?.permission}, exported=${serviceInfo?.exported}, " +
+                "enabled=${serviceInfo?.enabled}, process=${serviceInfo?.processName}, " +
+                "metadata=${serviceInfo?.metaData?.keySet()?.sorted()}, apiVersion=$apiVersion"
+        )
 
         bound = try {
             activity.bindService(
@@ -240,7 +262,7 @@ class GoogleDiscoverController(private val activity: Activity) {
             Log.w(TAG, "Unable to bind Google overlay service", error)
             false
         }
-
+        Log.i(TAG, "Google overlay bindService returned $bound")
         if (!bound) Log.w(TAG, "Google overlay service is unavailable")
     }
 
@@ -316,13 +338,17 @@ class GoogleDiscoverController(private val activity: Activity) {
         windowAttached = false
     }
 
-    private fun bindingFailed(reason: String) {
-        Log.w(TAG, "Google overlay binding failed: $reason")
-        runCatching { activity.unbindService(connection) }
+    private fun bindingFailed(reason: String, name: ComponentName) {
+        Log.w(TAG, "Google overlay binding failed: $reason; component=${name.flattenToShortString()}")
+        if (bound) {
+            runCatching { activity.unbindService(connection) }
+                .onFailure { Log.w(TAG, "Unable to unbind failed Google overlay service", it) }
+        }
         bound = false
         overlay = null
         windowAttached = false
-        if (enabled && started && !destroyed) connect()
+        retryBlocked = true
+        Log.w(TAG, "Google overlay reconnect paused until the setting is toggled off and on")
     }
 
     private companion object {
