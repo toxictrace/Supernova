@@ -25,11 +25,80 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run unit tests and build release APK
+      - name: Prepare release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          mkdir -p local
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > local/release.jks
+          test -s local/release.jks
+          chmod 600 local/release.jks
+          python3 - <<'PY'
+          import os
+
+          def escape(value):
+              result = []
+              for index, char in enumerate(value):
+                  code = ord(char)
+                  if char == "\\\\":
+                      result.append("\\\\\\\\")
+                  elif char == "\\t":
+                      result.append("\\\\t")
+                  elif char == "\\n":
+                      result.append("\\\\n")
+                  elif char == "\\r":
+                      result.append("\\\\r")
+                  elif char in "=:#!":
+                      result.append("\\\\" + char)
+                  elif index == 0 and char == " ":
+                      result.append("\\\\ ")
+                  elif code < 0x20 or code > 0x7e:
+                      if code <= 0xffff:
+                          result.append("\\\\u%04x" % code)
+                      else:
+                          code -= 0x10000
+                          high = 0xd800 + (code >> 10)
+                          low = 0xdc00 + (code & 0x3ff)
+                          result.append("\\\\u%04x\\\\u%04x" % (high, low))
+                  else:
+                      result.append(char)
+              return "".join(result)
+
+          values = {
+              "storeFile": "local/release.jks",
+              "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
+              "keyAlias": os.environ["ANDROID_KEY_ALIAS"],
+              "keyPassword": os.environ["ANDROID_KEY_PASSWORD"],
+          }
+          with open("local/keystore.properties", "w", encoding="ascii") as output:
+              for key, value in values.items():
+                  output.write(key + "=" + escape(value) + "\\n")
+          PY
+
+      - name: Run unit tests and build signed release APK
         run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
 
-      - name: Prepare APK artifact
-        run: cp app/build/outputs/apk/release/app-release-unsigned.apk app-release.apk
+      - name: Verify APK signature and prepare artifact
+        run: |
+          set -euo pipefail
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            APK=app/build/outputs/apk/release/app-release.apk
+          else
+            APK=app/build/outputs/apk/release/app-release-unsigned.apk
+          fi
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          cp "$APK" app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
