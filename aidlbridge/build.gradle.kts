@@ -17,9 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.supernova.googlecompanion"
         minSdk = 28
-        // Google App accepts the bridge as a debuggable launcher client.
-        // Keep the legacy target for the private launcher-overlay protocol.
-        targetSdk = 28
+        targetSdk = 36
     }
 
     signingConfigs {

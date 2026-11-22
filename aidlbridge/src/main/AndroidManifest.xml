@@ -12,6 +12,15 @@
         android:label="Supernova Google Companion"
         android:supportsRtl="true">
 
+        <activity
+            android:name=".CompanionActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".BridgeService"
             android:enabled="true"
