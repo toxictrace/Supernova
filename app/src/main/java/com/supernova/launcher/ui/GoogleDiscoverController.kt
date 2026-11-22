@@ -14,15 +14,17 @@ import android.os.RemoteException
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import amirz.aidlbridge.IBridge
+import amirz.aidlbridge.IBridgeCallback
 import com.google.android.libraries.launcherclient.ILauncherOverlay
 import com.google.android.libraries.launcherclient.ILauncherOverlayCallback
 import kotlin.math.abs
 
 /**
- * Connects to the Google App launcher overlay and forwards a rightward swipe.
+ * Connects through the companion Binder bridge and forwards a rightward swipe.
  *
- * The overlay protocol is private to Google App. Its AIDL transaction order and
- * attachment bundle are matched to the launcher client protocol used by Lawnchair.
+ * Google App's launcher-overlay protocol is private. The companion uses its own
+ * package identity when binding to Google App, then forwards the original Binder.
  */
 class GoogleDiscoverController(private val activity: Activity) {
 
@@ -36,6 +38,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var retryBlocked = false
     private var attached = false
     private var windowAttached = false
+    private var bridge: IBridge? = null
     private var overlay: ILauncherOverlay? = null
     private var apiVersion = 1
 
@@ -53,28 +56,57 @@ class GoogleDiscoverController(private val activity: Activity) {
         }
     }
 
+    private val bridgeCallback = object : IBridgeCallback.Stub() {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            activity.runOnUiThread {
+                if (destroyed || !enabled) return@runOnUiThread
+                overlay = ILauncherOverlay.Stub.asInterface(service)
+                windowAttached = false
+                attachWindow()
+                updateActivityState()
+                Log.i(TAG, "Bridge delivered Google overlay Binder")
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            activity.runOnUiThread {
+                finishScroll()
+                overlay = null
+                windowAttached = false
+                Log.w(TAG, "Google overlay disconnected through bridge")
+            }
+        }
+    }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            overlay = ILauncherOverlay.Stub.asInterface(service)
-            windowAttached = false
-            attachWindow()
-            updateActivityState()
-            Log.d(TAG, "Connected to Google overlay service")
+            bridge = IBridge.Stub.asInterface(service)
+            try {
+                bridge?.bindService(
+                    bridgeCallback,
+                    Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
+                )
+                Log.i(TAG, "Connected to Discover bridge service")
+            } catch (error: RemoteException) {
+                Log.w(TAG, "Unable to request Google overlay through bridge", error)
+                bindingFailed("bridge request failed", name)
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
             finishScroll()
+            bridge = null
             overlay = null
             windowAttached = false
-            Log.w(TAG, "Google overlay service disconnected")
+            Log.w(TAG, "Discover bridge service disconnected")
         }
 
         override fun onBindingDied(name: ComponentName) {
-            bindingFailed("binding died", name)
+            bindingFailed("bridge binding died", name)
         }
 
         override fun onNullBinding(name: ComponentName) {
-            bindingFailed("null binding", name)
+            bindingFailed("bridge returned null binding", name)
         }
     }
 
@@ -223,58 +255,68 @@ class GoogleDiscoverController(private val activity: Activity) {
 
     private fun connect() {
         if (!enabled || !started || destroyed || bound || retryBlocked) return
-        val intent = serviceIntent()
-        val resolved = runCatching {
-            activity.packageManager.resolveService(intent, PackageManager.GET_META_DATA)
+
+        val googleIntent = googleOverlayIntent()
+        val resolvedGoogle = runCatching {
+            activity.packageManager.resolveService(googleIntent, PackageManager.GET_META_DATA)
         }.onFailure {
             Log.w(TAG, "Unable to resolve Google overlay service", it)
         }.getOrNull()
-        val serviceInfo = resolved?.serviceInfo
-        apiVersion = serviceInfo?.metaData?.getInt("service.api.version", 1) ?: 1
+        val googleInfo = resolvedGoogle?.serviceInfo
+        apiVersion = googleInfo?.metaData?.getInt("service.api.version", 1) ?: 1
 
         val googleAppVersion = runCatching {
             val info = activity.packageManager.getPackageInfo(GOOGLE_PACKAGE, 0)
             "${info.versionName} (${info.longVersionCode})"
         }.getOrElse { "unavailable: ${it.javaClass.simpleName}" }
+
+        val bridgeIntent = bridgeServiceIntent()
+        val resolvedBridge = runCatching {
+            activity.packageManager.resolveService(bridgeIntent, PackageManager.MATCH_ALL)
+        }.getOrNull()
+
+        Log.i(TAG, "Google app=$googleAppVersion; overlay API=$apiVersion")
         Log.i(
             TAG,
-            "Google app=$googleAppVersion; intent action=${intent.action}, " +
-                "package=${intent.getPackage()}, data=${intent.data}"
-        )
-        Log.i(
-            TAG,
-            "Overlay resolve: component=${resolved?.resolvePackageName}/${serviceInfo?.name}, " +
-                "permission=${serviceInfo?.permission}, exported=${serviceInfo?.exported}, " +
-                "enabled=${serviceInfo?.enabled}, process=${serviceInfo?.processName}, " +
-                "metadata=${serviceInfo?.metaData?.keySet()?.sorted()}, apiVersion=$apiVersion"
+            "Bridge resolve: component=${resolvedBridge?.serviceInfo?.packageName}/" +
+                "${resolvedBridge?.serviceInfo?.name}, exported=${resolvedBridge?.serviceInfo?.exported}"
         )
 
         bound = try {
             activity.bindService(
-                intent,
+                bridgeIntent,
                 connection,
                 Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
             )
         } catch (error: SecurityException) {
-            Log.w(TAG, "Google overlay service rejected the connection", error)
+            Log.w(TAG, "Discover bridge rejected the connection", error)
             false
         } catch (error: RuntimeException) {
-            Log.w(TAG, "Unable to bind Google overlay service", error)
+            Log.w(TAG, "Unable to bind Discover bridge service", error)
             false
         }
-        Log.i(TAG, "Google overlay bindService returned $bound")
-        if (!bound) Log.w(TAG, "Google overlay service is unavailable")
+        Log.i(TAG, "Discover bridge bindService returned $bound")
+        if (!bound) Log.w(TAG, "Discover bridge is unavailable")
     }
 
-    private fun serviceIntent(): Intent {
-        val data = Uri.parse("app://${activity.packageName}:${Process.myUid()}")
+    private fun bridgeServiceIntent(): Intent {
+        return Intent(OVERLAY_ACTION)
+            .setPackage(BRIDGE_PACKAGE)
+            .setData(overlayUri())
+    }
+
+    private fun googleOverlayIntent(): Intent {
+        return Intent(OVERLAY_ACTION)
+            .setPackage(GOOGLE_PACKAGE)
+            .setData(overlayUri())
+    }
+
+    private fun overlayUri(): Uri {
+        return Uri.parse("app://${activity.packageName}:${Process.myUid()}")
             .buildUpon()
             .appendQueryParameter("v", "7")
             .appendQueryParameter("cv", "9")
             .build()
-        return Intent(OVERLAY_ACTION)
-            .setPackage(GOOGLE_PACKAGE)
-            .setData(data)
     }
 
     private fun attachWindow() {
@@ -331,29 +373,32 @@ class GoogleDiscoverController(private val activity: Activity) {
         detachWindow()
         if (bound) {
             runCatching { activity.unbindService(connection) }
-                .onFailure { Log.w(TAG, "Unable to unbind Google overlay service", it) }
+                .onFailure { Log.w(TAG, "Unable to unbind Discover bridge service", it) }
         }
         bound = false
+        bridge = null
         overlay = null
         windowAttached = false
     }
 
     private fun bindingFailed(reason: String, name: ComponentName) {
-        Log.w(TAG, "Google overlay binding failed: $reason; component=${name.flattenToShortString()}")
+        Log.w(TAG, "Discover bridge binding failed: $reason; component=${name.flattenToShortString()}")
         if (bound) {
             runCatching { activity.unbindService(connection) }
-                .onFailure { Log.w(TAG, "Unable to unbind failed Google overlay service", it) }
+                .onFailure { Log.w(TAG, "Unable to unbind failed Discover bridge", it) }
         }
         bound = false
+        bridge = null
         overlay = null
         windowAttached = false
         retryBlocked = true
-        Log.w(TAG, "Google overlay reconnect paused until the setting is toggled off and on")
+        Log.w(TAG, "Discover bridge reconnect paused until the setting is toggled off and on")
     }
 
     private companion object {
         const val TAG = "GoogleDiscover"
         const val GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox"
+        const val BRIDGE_PACKAGE = "amirz.aidlbridge"
         const val OVERLAY_ACTION = "com.android.launcher3.WINDOW_OVERLAY"
         const val CLIENT_OPTIONS = 15
         const val DIRECTION_BIAS = 1.2f

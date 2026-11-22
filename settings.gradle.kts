@@ -16,4 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Supernova"
 include(":app")
+include(":aidlbridge")
 include(":baselineprofile")
