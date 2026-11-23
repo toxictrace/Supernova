@@ -717,6 +717,7 @@
     <string name="settings_group_customize">Настройка</string>
     <string name="settings_group_app">Supernova</string>
     <string name="style_group_theme">Тема</string>
+    <string name="style_group_label_colors">Цвета подписей</string>
     <string name="style_group_surfaces">Поверхности</string>
     <string name="style_tab">Стиль</string>
     <string name="color_palette">Цветовая палитра</string>
