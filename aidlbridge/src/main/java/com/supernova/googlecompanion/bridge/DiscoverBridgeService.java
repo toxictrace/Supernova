@@ -14,7 +14,7 @@ import java.util.Map;
 public final class DiscoverBridgeService extends Service {
     private static final String TAG = "SupernovaDiscoverBridge";
     private static final String LAUNCHER_PACKAGE = "com.supernova.launcher";
-    private final Map<Intent, DiscoverBridgeImpl> bridges = new HashMap<>();
+    private final Map<Intent.FilterComparison, DiscoverBridgeImpl> bridges = new HashMap<>();
 
     @Override
     public synchronized IBinder onBind(Intent intent) {
@@ -56,17 +56,20 @@ public final class DiscoverBridgeService extends Service {
             return null;
         }
 
-        DiscoverBridgeImpl bridge = bridges.get(intent);
+        Intent.FilterComparison key = new Intent.FilterComparison(intent);
+        DiscoverBridgeImpl bridge = bridges.get(key);
         if (bridge == null) {
             bridge = new DiscoverBridgeImpl(getApplicationContext(), intent, callerUid);
-            bridges.put(new Intent(intent), bridge);
+            bridges.put(key, bridge);
         }
         return bridge;
     }
 
     @Override
     public synchronized boolean onUnbind(Intent intent) {
-        DiscoverBridgeImpl bridge = bridges.remove(intent);
+        DiscoverBridgeImpl bridge = intent == null
+                ? null
+                : bridges.remove(new Intent.FilterComparison(intent));
         if (bridge != null) bridge.disconnect();
         return super.onUnbind(intent);
     }

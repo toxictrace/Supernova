@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
@@ -17,11 +19,14 @@ import java.util.Set;
 /** Connects to Google App using the bridge package identity. */
 final class DiscoverBridgeImpl extends IDiscoverBridge.Stub {
     private static final String TAG = "SupernovaDiscoverBridge";
+    private static final int MAX_RECONNECT_ATTEMPTS = 6;
+    private static final long MAX_RECONNECT_DELAY_MS = 30_000L;
 
     private final Context context;
     private final Intent googleIntent;
     private final int expectedCallerUid;
-    private final Set<ServiceConnection> connections = new HashSet<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Set<GoogleServiceConnection> connections = new HashSet<>();
 
     DiscoverBridgeImpl(Context context, Intent launcherIntent, int expectedCallerUid) {
         this.context = context;
@@ -44,52 +49,109 @@ final class DiscoverBridgeImpl extends IDiscoverBridge.Stub {
             return;
         }
 
-        final ServiceConnection connection = new ServiceConnection() {
-            private boolean connected;
+        GoogleServiceConnection connection = new GoogleServiceConnection(callback, flags);
+        synchronized (connections) {
+            connections.add(connection);
+        }
+        connection.bind();
+    }
 
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                if (connected) return;
-                connected = true;
-                Log.i(TAG, "Connected to Google overlay: " + name.flattenToShortString());
-                try {
-                    callback.onServiceConnected(name, new BinderTransactionProxy(service));
-                } catch (RemoteException error) {
-                    Log.w(TAG, "Unable to deliver Google overlay Binder", error);
-                }
+    private final class GoogleServiceConnection implements ServiceConnection {
+        private final IDiscoverBridgeCallback callback;
+        private final int flags;
+        private boolean bound;
+        private boolean connected;
+        private int reconnectAttempt;
+        private final Runnable reconnect = this::bind;
+
+        GoogleServiceConnection(IDiscoverBridgeCallback callback, int flags) {
+            this.callback = callback;
+            this.flags = flags;
+        }
+
+        void bind() {
+            if (bound) return;
+            try {
+                bound = context.bindService(googleIntent, this, flags);
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Unable to bind Google App overlay", error);
+                bound = false;
             }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-                if (!connected) return;
-                connected = false;
-                notifyDisconnected(callback, name);
-            }
-
-            @Override
-            public void onBindingDied(ComponentName name) {
-                connected = false;
-                notifyDisconnected(callback, name);
-            }
-
-            @Override
-            public void onNullBinding(ComponentName name) {
-                connected = false;
-                Log.w(TAG, "Google App returned a null overlay binding");
-                notifyDisconnected(callback, name);
-            }
-        };
-
-        try {
-            if (context.bindService(googleIntent, connection, flags)) {
-                synchronized (connections) {
-                    connections.add(connection);
-                }
+            if (bound) {
+                Log.i(TAG, "Google overlay bindService returned true");
             } else {
-                Log.w(TAG, "Google App rejected bindService");
+                Log.w(TAG, "Google App rejected overlay bindService");
+                scheduleReconnect();
             }
-        } catch (RuntimeException error) {
-            Log.w(TAG, "Unable to bind Google App overlay", error);
+        }
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            connected = true;
+            reconnectAttempt = 0;
+            handler.removeCallbacks(reconnect);
+            Log.i(TAG, "Connected to Google overlay: " + name.flattenToShortString());
+            try {
+                callback.onServiceConnected(name, new BinderTransactionProxy(service));
+            } catch (RemoteException error) {
+                Log.w(TAG, "Unable to deliver Google overlay Binder", error);
+                release();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            if (!connected) return;
+            connected = false;
+            notifyDisconnected(callback, name);
+            // Android retains this binding and reconnects when the service returns.
+        }
+
+        @Override
+        public void onBindingDied(ComponentName name) {
+            connected = false;
+            notifyDisconnected(callback, name);
+            releaseBinding();
+            scheduleReconnect();
+        }
+
+        @Override
+        public void onNullBinding(ComponentName name) {
+            connected = false;
+            Log.w(TAG, "Google App returned a null overlay binding");
+            notifyDisconnected(callback, name);
+            releaseBinding();
+            scheduleReconnect();
+        }
+
+        private void scheduleReconnect() {
+            if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+                Log.w(TAG, "Google overlay reconnect limit reached");
+                return;
+            }
+            reconnectAttempt++;
+            long delay = Math.min(1_000L << (reconnectAttempt - 1), MAX_RECONNECT_DELAY_MS);
+            handler.removeCallbacks(reconnect);
+            Log.w(TAG, "Retrying Google overlay binding in " + delay + "ms");
+            handler.postDelayed(reconnect, delay);
+        }
+
+        private void releaseBinding() {
+            if (!bound) return;
+            try {
+                context.unbindService(this);
+            } catch (IllegalArgumentException error) {
+                Log.w(TAG, "Google overlay binding was already released", error);
+            }
+            bound = false;
+        }
+
+        void release() {
+            handler.removeCallbacks(reconnect);
+            releaseBinding();
+            synchronized (connections) {
+                connections.remove(this);
+            }
         }
     }
 
@@ -102,15 +164,13 @@ final class DiscoverBridgeImpl extends IDiscoverBridge.Stub {
     }
 
     void disconnect() {
+        GoogleServiceConnection[] snapshot;
         synchronized (connections) {
-            for (ServiceConnection connection : connections) {
-                try {
-                    context.unbindService(connection);
-                } catch (IllegalArgumentException error) {
-                    Log.w(TAG, "Google overlay connection was already released", error);
-                }
-            }
+            snapshot = connections.toArray(new GoogleServiceConnection[0]);
             connections.clear();
+        }
+        for (GoogleServiceConnection connection : snapshot) {
+            connection.release();
         }
     }
 }
