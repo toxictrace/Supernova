@@ -47,9 +47,11 @@ class PrefRegistryTest {
     }
 
     @Test
-    fun `frequent apps row is enabled on all tabs by default`() {
+    fun `frequent apps row is enabled only on All by default`() {
         assertTrue(LauncherPrefs().drawerFrequentRow)
-        assertTrue(LauncherPrefs().drawerFrequentRowAllTabs)
+        assertFalse(LauncherPrefs().drawerFrequentRowAllTabs)
+        assertEquals(0, LauncherPrefs().drawerFrequentRowPaddingH)
+        assertEquals(0, LauncherPrefs().drawerFrequentRowSpacing)
     }
 
     @Test

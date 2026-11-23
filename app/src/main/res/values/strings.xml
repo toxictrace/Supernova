@@ -174,7 +174,7 @@
     <string name="drawer_frequent_row_spacing_hint">Move left to tighten spacing. Move right to spread apps apart.</string>
     <string name="drawer_frequent_row_padding_hint">Move left to bring apps closer to the edges. Move right to move them inward.</string>
     <string name="drawer_frequent_row_match_drawer">Match app grid</string>
-    <string name="drawer_frequent_row_match_drawer_summary">Use the app drawer's current edge padding and standard spacing.</string>
+    <string name="drawer_frequent_row_match_drawer_summary">Use the app drawer edge padding and standard spacing.</string>
     <string name="drawer_sort_buttons">Sort buttons</string>
     <string name="drawer_sort_buttons_summary">Change the order from the top of the app list</string>
     <string name="drawer_sort_apps_desc">App order: %1$s</string>

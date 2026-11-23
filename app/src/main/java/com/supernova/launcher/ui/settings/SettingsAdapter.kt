@@ -100,11 +100,16 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
     // the activity to carry across a recreate. Set before the first submit,
     // the list's saved scroll finds the rows it was on.
     var openAccordions: IntArray
-        get() = expandedAccordions.flatMap { (key, titles) -> titles.flatMap { listOf(key, it) } }.toIntArray()
+        get() = expandedAccordions.flatMap { (key, titles) ->
+            titles.filterNot { it == R.string.drawer_frequent_row }.flatMap { listOf(key, it) }
+        }.toIntArray()
         set(pairs) {
             expandedAccordions.clear()
             for (i in 0 until pairs.size / 2) {
-                expandedAccordions.getOrPut(pairs[2 * i]) { mutableSetOf() }.add(pairs[2 * i + 1])
+                val title = pairs[2 * i + 1]
+                if (title != R.string.drawer_frequent_row) {
+                    expandedAccordions.getOrPut(pairs[2 * i]) { mutableSetOf() }.add(title)
+                }
             }
             rebuild()
         }
@@ -144,6 +149,9 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
     }
 
     fun updatePrefs(prefs: LauncherPrefs) {
+        if (!prefs.drawerFrequentRow) {
+            expandedAccordions.values.forEach { it.remove(R.string.drawer_frequent_row) }
+        }
         this.prefs = prefs
         previews.latestPrefs = prefs
         rebuild()
