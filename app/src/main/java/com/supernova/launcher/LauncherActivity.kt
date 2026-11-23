@@ -4782,7 +4782,7 @@ class LauncherActivity :
             ItemType.APP -> if (app == null) getDrawable(R.drawable.ic_supernova) else appItemIcon(item, app, onCurrentGeneration)
             ItemType.SHORTCUT -> when (val look = itemIcons.shortcutLook(item, onCurrentGeneration)) {
                 null -> null
-                else -> look.icon ?: app?.let { appItemIcon(item, it, onLate) } ?: getDrawable(R.drawable.ic_supernova)
+                else -> look.icon ?: app?.let { appItemIcon(item, it, onCurrentGeneration) } ?: getDrawable(R.drawable.ic_supernova)
             }
         }
         // While a late icon renders, the item keeps the picture it last
