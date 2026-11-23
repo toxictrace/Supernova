@@ -2026,13 +2026,6 @@ object SettingsCatalogue {
                 look = SettingItem.RowLook(R.drawable.ic_style_schedule)
             ).hiddenWhen { dependsOn(R.string.theme_mode, it.themeMode != ThemeMode.SCHEDULE) },
             accentRow(context, viewModel, actions),
-            SettingItem.Header(R.string.style_group_label_colors),
-            rows.color(R.string.desktop_label_color, { it.desktopLabelColor }) {
-                viewModel.set(Pref.desktopLabelColor, it)
-            },
-            rows.color(R.string.dock_label_color, { it.dockLabelColor }) {
-                viewModel.set(Pref.dockLabelColor, it)
-            },
             SettingItem.Header(R.string.style_group_surfaces),
             SettingItem.StyleTarget(
                 R.string.settings_section_home, SurfaceId.HOME, { actions.openStylePicker(SurfaceId.HOME) }

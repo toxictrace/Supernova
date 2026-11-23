@@ -76,7 +76,13 @@ object StylePickerSheet {
 
         var config = StyleConfig.decode(prefs.styleConfig)
         var style = config.styleFor(surfaceId)
-        var slot = Slot.SURFACE
+        val usesLabelPref = surfaceId == SurfaceId.HOME || surfaceId == SurfaceId.DOCK
+        var labelColor = when (surfaceId) {
+            SurfaceId.HOME -> prefs.desktopLabelColor
+            SurfaceId.DOCK -> prefs.dockLabelColor
+            else -> ""
+        }
+        var slot = if (surfaceId == SurfaceId.HOME) Slot.TEXT else Slot.SURFACE
 
         binding.styleTitle.setText(EnumLabels.of(surfaceId))
 
@@ -95,13 +101,34 @@ object StylePickerSheet {
             binding.root.postDelayed(persistLater, CUSTOM_SAVE_DELAY_MS)
         }
 
-        fun activeSpec(): ColorSpec = when (slot) {
-            Slot.SURFACE -> style.surface
-            Slot.TEXT -> style.text
-            Slot.ACCENT -> style.accent
+        fun isLabelColorSlot(): Boolean = usesLabelPref && slot == Slot.TEXT
+
+        fun activeSpec(): ColorSpec = when {
+            isLabelColorSlot() -> ColorSpec(fixed = labelColor.takeIf { it.isNotBlank() })
+            else -> when (slot) {
+                Slot.SURFACE -> style.surface
+                Slot.TEXT -> style.text
+                Slot.ACCENT -> style.accent
+            }
+        }
+
+        fun labelColorValue(spec: ColorSpec): String = when {
+            spec.fixed != null -> spec.fixed
+            spec.role != null && spec.tone != null ->
+                String.format(java.util.Locale.ROOT, "#%08X", palette.tone(spec.role, spec.tone))
+            else -> ""
         }
 
         fun setActiveSpec(spec: ColorSpec) {
+            if (isLabelColorSlot()) {
+                labelColor = labelColorValue(spec)
+                if (surfaceId == SurfaceId.HOME) {
+                    viewModel.set(Pref.desktopLabelColor, labelColor)
+                } else {
+                    viewModel.set(Pref.dockLabelColor, labelColor)
+                }
+                return
+            }
             style = when (slot) {
                 Slot.SURFACE -> style.copy(surface = spec)
                 Slot.TEXT -> style.copy(text = spec)
@@ -131,7 +158,12 @@ object StylePickerSheet {
                 resolved.cornerRadiiDp?.let { dpArr -> FloatArray(4) { dpArr[it] * density } },
                 context.dp(14).toFloat()
             )
-            binding.stripText.setTextColor(resolved.text)
+            val textColor = if (usesLabelPref && labelColor.isNotBlank()) {
+                runCatching { Color.parseColor(labelColor) }.getOrDefault(resolved.text)
+            } else {
+                resolved.text
+            }
+            binding.stripText.setTextColor(textColor)
             stripDot.setColor(resolved.accent)
         }
 
@@ -141,17 +173,24 @@ object StylePickerSheet {
         // The any-color rows start from the slot's color as drawn.
         fun showCustom() {
             val resolved = resolvedNow()
-            val color = when (slot) {
-                Slot.SURFACE -> resolved.surface
-                Slot.TEXT -> resolved.text
-                Slot.ACCENT -> resolved.accent
+            val color = when {
+                isLabelColorSlot() && labelColor.isNotBlank() ->
+                    runCatching { Color.parseColor(labelColor) }.getOrDefault(resolved.text)
+                else -> when (slot) {
+                    Slot.SURFACE -> resolved.surface
+                    Slot.TEXT -> resolved.text
+                    Slot.ACCENT -> resolved.accent
+                }
             }
             custom.show(color or OPAQUE)
         }
 
         fun onPick(spec: ColorSpec, fromCustom: Boolean = false) {
+            val labelSlot = isLabelColorSlot()
             setActiveSpec(spec)
-            if (fromCustom) {
+            if (labelSlot) {
+                binding.root.removeCallbacks(persistLater)
+            } else if (fromCustom) {
                 // The strip resolves the copy, so it can run ahead of the save.
                 config = config.with(surfaceId, style)
                 persistSoon()
@@ -164,7 +203,7 @@ object StylePickerSheet {
             // The home background is transparent by default and the drawer's
             // field a faint tint, and a color picked without an opacity is
             // drawn solid: the slider shows which.
-            val defaultOpacity = when (surfaceId) {
+            val defaultOpacity = if (labelSlot) null else when (surfaceId) {
                 SurfaceId.HOME -> 0
                 SurfaceId.DRAWER_SEARCH_BAR -> DRAWER_FIELD_OPACITY
                 else -> null
@@ -180,7 +219,19 @@ object StylePickerSheet {
         renderSwatches = {
             val spec = activeSpec()
             fillSwatches(context, binding, palette, { candidate ->
-                if (candidate.fixed != null) {
+                if (isLabelColorSlot()) {
+                    if (labelColor.isBlank()) {
+                        false
+                    } else {
+                        val candidateColor = when {
+                            candidate.fixed != null -> runCatching { Color.parseColor(candidate.fixed) }.getOrNull()
+                            candidate.role != null && candidate.tone != null -> palette.tone(candidate.role, candidate.tone)
+                            else -> null
+                        }
+                        val selectedColor = runCatching { Color.parseColor(labelColor) }.getOrNull()
+                        candidateColor != null && candidateColor == selectedColor
+                    }
+                } else if (candidate.fixed != null) {
                     candidate.fixed.equals(spec.fixed, ignoreCase = true)
                 } else {
                     spec.fixed == null && spec.role == candidate.role &&
@@ -203,7 +254,7 @@ object StylePickerSheet {
         // Minimum contrast: 0 to 60 tones in steps of 5, 0 being off.
         fun renderContrast() {
             binding.contrastRow.visibility =
-                if (slot == Slot.TEXT) android.view.View.VISIBLE else android.view.View.GONE
+                if (slot == Slot.TEXT && !isLabelColorSlot()) android.view.View.VISIBLE else android.view.View.GONE
             val value = style.minContrast ?: 0
             binding.contrastValue.text = if (value == 0) {
                 context.getString(R.string.mode_off)
@@ -318,15 +369,15 @@ object StylePickerSheet {
         }
 
         if (surfaceId == SurfaceId.HOME) {
-            // A background behind the icons: a color and how much of the
-            // wallpaper it hides, and nothing that needs text.
-            listOf(
-                binding.slotGroup, binding.stripText, binding.stripAccent, binding.contrastRow
-            ).forEach { it.visibility = android.view.View.GONE }
+            // The home surface only edits icon label text; its background remains separate.
+            listOf(binding.slotSurface, binding.slotAccent, binding.stripAccent).forEach {
+                it.visibility = android.view.View.GONE
+            }
+            binding.slotText.visibility = android.view.View.VISIBLE
+            binding.stripText.visibility = android.view.View.VISIBLE
         }
         if (surfaceId == SurfaceId.DOCK) {
-            // The dock's Text colours its labels on a plate; nothing on it
-            // takes an accent.
+            // The dock has no accent slot.
             listOf(binding.slotAccent, binding.stripAccent).forEach { it.visibility = android.view.View.GONE }
         }
         if (surfaceId in BAR_SURFACES) {
