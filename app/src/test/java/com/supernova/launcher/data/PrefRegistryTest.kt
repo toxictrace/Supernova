@@ -47,8 +47,7 @@ class PrefRegistryTest {
     }
 
     @Test
-    fun `root settings are disabled by default`() {
-        assertFalse(LauncherPrefs().rootSettingsEnabled)
+    fun `hide clock is disabled by default`() {
         assertFalse(LauncherPrefs().rootHideClock)
         assertFalse(LauncherPrefs().rootClockAddedToBlacklist)
     }
@@ -58,7 +57,6 @@ class PrefRegistryTest {
         assertTrue(LauncherPrefs().drawerFrequentRow)
         assertFalse(LauncherPrefs().drawerFrequentRowAllTabs)
         assertEquals(0, LauncherPrefs().drawerFrequentRowPaddingH)
-        assertEquals(0, LauncherPrefs().drawerFrequentRowSpacing)
     }
 
     @Test
@@ -141,14 +139,12 @@ class PrefRegistryTest {
         val stored = mutablePreferencesOf(
             Pref.gridRows.key to 99,
             Pref.iconScale.key to 9f,
-            Pref.drawerFrequentRowPaddingH.key to 99,
-            Pref.drawerFrequentRowSpacing.key to 99
+            Pref.drawerFrequentRowPaddingH.key to 99
         )
         val read = LauncherPreferences.decode(stored)
         assertEquals(GridLimits.DESKTOP_BIG, read.gridRows)
         assertEquals(2f, read.iconScale)
         assertEquals(48, read.drawerFrequentRowPaddingH)
-        assertEquals(24, read.drawerFrequentRowSpacing)
 
         val written = mutablePreferencesOf()
         LauncherPreferences.writeAll(written, LauncherPrefs(gridRows = 1, feedShortcutRows = 9))

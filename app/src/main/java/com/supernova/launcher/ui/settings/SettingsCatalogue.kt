@@ -127,7 +127,6 @@ object SettingsCatalogue {
         // Opens a section by title (a built-in card's own settings page,
         // the Desktop search bar page).
         val openSection: (Int) -> Unit = {},
-        val onRootSettingsChanged: (Boolean) -> Unit = {},
         val onRootClockChanged: (Boolean) -> Unit = {}
     )
 
@@ -498,17 +497,11 @@ object SettingsCatalogue {
                     set = { viewModel.set(Pref.hideStatusBar, it) }
                 ),
                 SettingItem.Toggle(
-                    R.string.root_settings,
-                    get = { it.rootSettingsEnabled },
-                    set = actions.onRootSettingsChanged
-                ),
-                SettingItem.Toggle(
                     R.string.root_hide_clock,
                     get = { it.rootHideClock },
-                    set = actions.onRootClockChanged
-                ).hiddenWhen {
-                    needsOn(R.string.root_settings, !it.rootSettingsEnabled)
-                }.nested(),
+                    set = actions.onRootClockChanged,
+                    subtitle = R.string.root_hide_clock_summary
+                ),
                 rows.choice(
                     R.string.status_bar_icons, StatusBarIcons.entries,
                     { it.darkStatusIcons }, { EnumLabels.of(it) }
@@ -856,14 +849,6 @@ object SettingsCatalogue {
                     display = { context.getString(R.string.padding_dp_value, it) },
                     note = { context.getString(R.string.drawer_frequent_row_padding_hint) }
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
-                SettingItem.Slider(
-                    R.string.drawer_frequent_row_spacing,
-                    min = 0, max = 24, step = 2,
-                    get = { it.drawerFrequentRowSpacing },
-                    set = { viewModel.set(Pref.drawerFrequentRowSpacing, it) },
-                    display = { context.getString(R.string.padding_dp_value, it) },
-                    note = { context.getString(R.string.drawer_frequent_row_spacing_hint) }
-                ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 SettingItem.Row(
                     R.string.drawer_frequent_row_match_drawer,
                     subtitle = { context.getString(R.string.drawer_frequent_row_match_drawer_summary) },
@@ -871,8 +856,7 @@ object SettingsCatalogue {
                         val drawerPadding = viewModel.state.value.prefs.drawerPaddingH
                         viewModel.setAll(
                             listOf(
-                                PrefWrite(Pref.drawerFrequentRowPaddingH, drawerPadding),
-                                PrefWrite(Pref.drawerFrequentRowSpacing, 0)
+                                PrefWrite(Pref.drawerFrequentRowPaddingH, drawerPadding)
                             )
                         )
                     },

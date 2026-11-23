@@ -101,13 +101,13 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
     // the list's saved scroll finds the rows it was on.
     var openAccordions: IntArray
         get() = expandedAccordions.flatMap { (key, titles) ->
-            titles.filterNot { it == R.string.drawer_frequent_row || it == R.string.root_settings }.flatMap { listOf(key, it) }
+            titles.filterNot { it == R.string.drawer_frequent_row }.flatMap { listOf(key, it) }
         }.toIntArray()
         set(pairs) {
             expandedAccordions.clear()
             for (i in 0 until pairs.size / 2) {
                 val title = pairs[2 * i + 1]
-                if (title != R.string.drawer_frequent_row && title != R.string.root_settings) {
+                if (title != R.string.drawer_frequent_row) {
                     expandedAccordions.getOrPut(pairs[2 * i]) { mutableSetOf() }.add(title)
                 }
             }
@@ -151,9 +151,6 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
     fun updatePrefs(prefs: LauncherPrefs) {
         if (!prefs.drawerFrequentRow) {
             expandedAccordions.values.forEach { it.remove(R.string.drawer_frequent_row) }
-        }
-        if (!prefs.rootSettingsEnabled) {
-            expandedAccordions.values.forEach { it.remove(R.string.root_settings) }
         }
         this.prefs = prefs
         previews.latestPrefs = prefs

@@ -181,8 +181,6 @@
     <string name="drawer_frequent_row_all_tabs">Показывать на всех вкладках</string>
     <string name="drawer_frequent_row_all_tabs_summary">Также показывать одинаковый список частых приложений на остальных вкладках</string>
     <string name="drawer_frequent_row_padding_h">Отступ от краёв верхнего ряда</string>
-    <string name="drawer_frequent_row_spacing">Расстояние между значками</string>
-    <string name="drawer_frequent_row_spacing_hint">Влево — плотнее. Вправо — свободнее.</string>
     <string name="drawer_frequent_row_padding_hint">Влево — ближе к краям. Вправо — дальше от краёв.</string>
     <string name="drawer_frequent_row_match_drawer">Как в основном меню</string>
     <string name="drawer_frequent_row_match_drawer_summary">Использовать отступы основного меню и стандартное расстояние.</string>
@@ -915,8 +913,8 @@
     <string name="apk_saved_base">Базовый APK сохранён. Приложение использует разделённые APK.</string>
     <string name="apk_save_failed">Не удалось сохранить APK</string>
     <string name="hide_status_bar">Скрыть строку состояния</string>
-    <string name="root_settings">Root настройки</string>
-    <string name="root_hide_clock">Скрыть часы</string>
+    <string name="root_hide_clock">Отключить часы (нужны рут-права)</string>
+    <string name="root_hide_clock_summary">Требуются рут-права. Остальные значки строки состояния останутся видимыми.</string>
     <string name="root_settings_required">Для этой опции нужны рут-права.</string>
     <string name="root_settings_operation_failed">Не удалось изменить отображение часов. Проверьте root-доступ.</string>
     <string name="status_bar_icons">Цвет значков строки состояния</string>

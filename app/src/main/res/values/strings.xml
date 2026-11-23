@@ -170,8 +170,6 @@
     <string name="drawer_frequent_row_all_tabs">Show on all tabs</string>
     <string name="drawer_frequent_row_all_tabs_summary">Also show the same frequent apps above every other drawer tab</string>
     <string name="drawer_frequent_row_padding_h">Horizontal edge padding</string>
-    <string name="drawer_frequent_row_spacing">Space between apps</string>
-    <string name="drawer_frequent_row_spacing_hint">Move left to tighten spacing. Move right to spread apps apart.</string>
     <string name="drawer_frequent_row_padding_hint">Move left to bring apps closer to the edges. Move right to move them inward.</string>
     <string name="drawer_frequent_row_match_drawer">Match app grid</string>
     <string name="drawer_frequent_row_match_drawer_summary">Use the app drawer edge padding and standard spacing.</string>
@@ -943,8 +941,8 @@
 
     <!-- Phase 6: notification bar / system chrome -->
     <string name="hide_status_bar">Hide status bar</string>
-    <string name="root_settings">Root settings</string>
-    <string name="root_hide_clock">Hide clock</string>
+    <string name="root_hide_clock">Disable clock (root required)</string>
+    <string name="root_hide_clock_summary">Requires root access. Other status bar icons remain visible.</string>
     <string name="root_settings_required">Root access is required for this option.</string>
     <string name="root_settings_operation_failed">Could not change the status bar clock. Check root access and try again.</string>
     <string name="status_bar_icons">Status bar icon color</string>

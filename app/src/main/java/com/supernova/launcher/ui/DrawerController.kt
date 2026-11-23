@@ -1837,7 +1837,7 @@ class DrawerController(
             .coerceAtMost((gridWidthPx() / columns - context.dp(TILE_SIDE_PADDING_DP)).coerceAtLeast(1))
         val key = apps.joinToString { "${it.userSerial}/${it.packageName}/${it.className}" } +
             "|$columns|$textColor|$lastIconGeneration|$iconSizePx|" +
-            "${prefs.drawerFrequentRowPaddingH}|${prefs.drawerFrequentRowSpacing}|${styleKey(prefs)}"
+            "${prefs.drawerFrequentRowPaddingH}|${styleKey(prefs)}"
         if (key == frequentRowKey) return
         frequentRowKey = key
         // Long-pressed, each is a drawer icon like any other: its menu, and a
@@ -1875,7 +1875,6 @@ class DrawerController(
             textColor,
             columns,
             sidePaddingDp = prefs.drawerFrequentRowPaddingH,
-            itemSpacingDp = prefs.drawerFrequentRowSpacing,
             look = look
         )
     }

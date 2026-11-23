@@ -257,7 +257,6 @@ data class LauncherPrefs(
     val drawerFrequentRowAllTabs: Boolean = false,
     // Symmetric inset from the drawer edges and the gap between adjacent cells, in dp.
     val drawerFrequentRowPaddingH: Int = 0,
-    val drawerFrequentRowSpacing: Int = 0,
     // Keep the scroll position across close/reopen instead of resetting to top.
     val drawerRememberPosition: Boolean = false,
     // Hide the drawer when an app is launched from it; false keeps it open
@@ -522,7 +521,6 @@ data class LauncherPrefs(
     // System chrome: status bar hidden on the launcher, forced icon tint
     // (ui/StatusBarIcons name; AUTO follows the theme), nav bar transparency.
     val hideStatusBar: Boolean = false,
-    val rootSettingsEnabled: Boolean = false,
     val rootHideClock: Boolean = false,
     val rootClockAddedToBlacklist: Boolean = false,
     val darkStatusIcons: StatusBarIcons = StatusBarIcons.AUTO,

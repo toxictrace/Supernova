@@ -619,40 +619,18 @@ class SettingsActivity : AppCompatActivity() {
                 )
             },
             openSection = { title -> navigateTo(title, 0) },
-            onRootSettingsChanged = { enabled ->
-                lifecycleScope.launch {
-                    if (enabled) {
-                        val granted = withContext(Dispatchers.IO) {
-                            com.supernova.launcher.ui.settings.RootStatusBarClock.hasRoot()
-                        }
-                        if (granted) {
-                            viewModel.set(Pref.rootSettingsEnabled, true)
-                        } else {
-                            showRootSettingsMessage(R.string.root_settings_required)
-                            render()
-                        }
-                    } else {
-                        val prefs = viewModel.state.value.prefs
-                        val restored = !prefs.rootHideClock || withContext(Dispatchers.IO) {
-                            com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
-                                prefs.rootClockAddedToBlacklist
-                            )
-                        }
-                        if (restored) {
-                            viewModel.set(Pref.rootHideClock, false)
-                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
-                            viewModel.set(Pref.rootSettingsEnabled, false)
-                        } else {
-                            showRootSettingsMessage(R.string.root_settings_operation_failed)
-                            render()
-                        }
-                    }
-                }
-            },
             onRootClockChanged = { hidden ->
                 lifecycleScope.launch {
                     val prefs = viewModel.state.value.prefs
                     if (hidden) {
+                        val granted = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.hasRoot()
+                        }
+                        if (!granted) {
+                            showRootSettingsMessage(R.string.root_settings_required)
+                            render()
+                            return@launch
+                        }
                         val added = withContext(Dispatchers.IO) {
                             com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
                         }
