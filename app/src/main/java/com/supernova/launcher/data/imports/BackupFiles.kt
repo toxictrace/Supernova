@@ -21,6 +21,26 @@ internal sealed interface PickedBackup {
 // The file is no backup this can read, or too big to be one.
 internal class UnreadableBackupException(message: String) : Exception(message)
 
+// Counts decompressed bytes from every ZIP entry, including entries the
+// importer does not recognize and ZipInputStream otherwise drains itself.
+internal class BoundedZipInputStream(
+    input: InputStream,
+    private val expandedLimit: Long
+) : ZipInputStream(input) {
+    private var expandedBytes = 0L
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        val count = super.read(buffer, offset, length)
+        if (count > 0) {
+            expandedBytes += count
+            if (expandedBytes > expandedLimit) {
+                throw UnreadableBackupException("the archive expands beyond the backup size limit")
+            }
+        }
+        return count
+    }
+}
+
 internal object BackupFiles {
 
     fun read(context: Context, uri: Uri): PickedBackup {
@@ -50,7 +70,7 @@ internal object BackupFiles {
         try {
             check(dir.mkdirs()) { "can't make room to read the file" }
             val parts = Parts(dir)
-            ZipInputStream(stream).use { zip ->
+            BoundedZipInputStream(stream, ARCHIVE_EXPANDED_LIMIT).use { zip ->
                 generateSequence { zip.nextEntry }.forEachIndexed { index, entry ->
                     if (index >= ENTRY_LIMIT) throw UnreadableBackupException("too many files in the backup")
                     if (!entry.isDirectory) parts.take(entry.name.substringAfterLast('/').lowercase(), zip)
@@ -141,6 +161,7 @@ internal object BackupFiles {
     private const val PREFS_DATABASE = "preferences"
     private const val BUFFER = 64 * 1024
     private const val OWN_LIMIT = 64L * 1024 * 1024
+    private const val ARCHIVE_EXPANDED_LIMIT = 448L * 1024 * 1024
     private const val DATABASE_LIMIT = 64L * 1024 * 1024
     private const val SMALL_LIMIT = 8L * 1024 * 1024
     private const val DATABASE_COUNT = 6
