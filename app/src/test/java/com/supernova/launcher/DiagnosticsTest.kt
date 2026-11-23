@@ -10,6 +10,21 @@ import org.junit.Test
 
 class DiagnosticsTest {
 
+
+    @Test
+    fun `diagnostic log append never exceeds its byte limit`() {
+        val file = java.io.File.createTempFile("supernova-log", ".txt")
+        try {
+            assertTrue(Diagnostics.appendBounded(file, "1234", 6))
+            assertFalse(Diagnostics.appendBounded(file, "567", 6))
+            assertEquals("1234", file.readText())
+            assertTrue(Diagnostics.appendBounded(file, "56", 6))
+            assertEquals("123456", file.readText())
+        } finally {
+            file.delete()
+        }
+    }
+
     @Test
     fun `a failure is handed back, not thrown`() {
         val result = runLogged("parse") { error("bad input") }

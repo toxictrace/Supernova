@@ -61,7 +61,8 @@ class SupernovaApp : Application() {
         val fallback = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
-                crashLog(this@SupernovaApp).appendText(
+                Diagnostics.appendBounded(
+                    crashLog(this@SupernovaApp),
                     "\n$CRASH_ENTRY${java.time.Instant.now()} ===\n" +
                         "Version: ${versionLabel(this@SupernovaApp)}\n" +
                         "Thread: ${thread.name}\n" +

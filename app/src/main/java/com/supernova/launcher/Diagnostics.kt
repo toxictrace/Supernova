@@ -27,6 +27,19 @@ object Diagnostics {
     private const val MAX_LOG_BYTES = 256 * 1024L
     private const val FRAMES = 8
 
+    private val fileLock = Any()
+
+    // Crash and diagnostic entries share one file. Keep every append bounded
+    // and serialized so simultaneous writers cannot pass the size check.
+    internal fun appendBounded(file: File, entry: String, maxBytes: Long = MAX_LOG_BYTES): Boolean =
+        synchronized(fileLock) {
+            val bytes = entry.toByteArray(Charsets.UTF_8)
+            if (maxBytes < 0 || bytes.size.toLong() > maxBytes) return@synchronized false
+            if (file.length() > maxBytes - bytes.size) return@synchronized false
+            file.appendBytes(bytes)
+            true
+        }
+
     private val seen = ConcurrentHashMap<String, Int>()
 
     @Volatile
@@ -48,7 +61,7 @@ object Diagnostics {
         if (times != 1) return
         val entry = entry(what, failure, Instant.now())
         writer.execute {
-            runCatching { if (file.length() < MAX_LOG_BYTES) file.appendText(entry) }
+            runCatching { appendBounded(file, entry) }
         }
     }
 
@@ -62,7 +75,7 @@ object Diagnostics {
         if (times > NOTE_REPEATS) return
         val entry = noteEntry(what, detail, Instant.now())
         writer.execute {
-            runCatching { if (file.length() < MAX_LOG_BYTES) file.appendText(entry) }
+            runCatching { appendBounded(file, entry) }
         }
     }
 
