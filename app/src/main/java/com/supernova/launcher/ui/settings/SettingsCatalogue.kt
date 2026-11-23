@@ -9,6 +9,7 @@ import com.supernova.launcher.data.IconShape
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.LockMethod
 import com.supernova.launcher.data.Pref
+import com.supernova.launcher.data.PrefWrite
 import com.supernova.launcher.data.SearchWindowMode
 import kotlin.math.roundToInt
 import com.supernova.launcher.ui.BadgePosition
@@ -838,14 +839,30 @@ object SettingsCatalogue {
                     min = 0, max = 48, step = 2,
                     get = { it.drawerFrequentRowPaddingH },
                     set = { viewModel.set(Pref.drawerFrequentRowPaddingH, it) },
-                    display = { context.getString(R.string.padding_dp_value, it) }
+                    display = { context.getString(R.string.padding_dp_value, it) },
+                    note = { context.getString(R.string.drawer_frequent_row_padding_hint) }
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 SettingItem.Slider(
                     R.string.drawer_frequent_row_spacing,
                     min = 0, max = 24, step = 2,
                     get = { it.drawerFrequentRowSpacing },
                     set = { viewModel.set(Pref.drawerFrequentRowSpacing, it) },
-                    display = { context.getString(R.string.padding_dp_value, it) }
+                    display = { context.getString(R.string.padding_dp_value, it) },
+                    note = { context.getString(R.string.drawer_frequent_row_spacing_hint) }
+                ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
+                SettingItem.Row(
+                    R.string.drawer_frequent_row_match_drawer,
+                    subtitle = { context.getString(R.string.drawer_frequent_row_match_drawer_summary) },
+                    onClick = {
+                        val drawerPadding = viewModel.state.value.prefs.drawerPaddingH
+                        viewModel.setAll(
+                            listOf(
+                                PrefWrite(Pref.drawerFrequentRowPaddingH, drawerPadding),
+                                PrefWrite(Pref.drawerFrequentRowSpacing, 0)
+                            )
+                        )
+                    },
+                    look = SettingItem.RowLook(chevron = false)
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 // Horizontal Scroll group: paged style only.
                 SettingItem.Toggle(

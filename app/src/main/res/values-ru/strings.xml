@@ -182,6 +182,10 @@
     <string name="drawer_frequent_row_all_tabs_summary">Также показывать одинаковый список частых приложений на остальных вкладках</string>
     <string name="drawer_frequent_row_padding_h">Отступ от краёв верхнего ряда</string>
     <string name="drawer_frequent_row_spacing">Расстояние между значками</string>
+    <string name="drawer_frequent_row_spacing_hint">Влево — плотнее. Вправо — свободнее.</string>
+    <string name="drawer_frequent_row_padding_hint">Влево — ближе к краям. Вправо — дальше от краёв.</string>
+    <string name="drawer_frequent_row_match_drawer">Как в основном меню</string>
+    <string name="drawer_frequent_row_match_drawer_summary">Использовать отступы основного меню и стандартное расстояние.</string>
     <string name="drawer_sort_buttons">Кнопки сортировки</string>
     <string name="drawer_sort_buttons_summary">Изменить порядок в верхней части списка приложений</string>
     <string name="drawer_sort_apps_desc">Порядок приложений: %1$s</string>
