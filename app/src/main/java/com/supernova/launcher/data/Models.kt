@@ -369,6 +369,8 @@ data class LauncherPrefs(
     // Drop shadow under the folder card. Off flattens it onto the wallpaper,
     // which is what a translucent folder surface usually wants.
     val folderShadow: Boolean = true,
+    // Black overlay over the desaturated screen while a folder is open.
+    val folderBackdropOpacity: Float = 0.7f,
     // VERTICAL scrolls the folder grid; HORIZONTAL, the default, pages it
     // (FolderScroll).
     val folderScroll: FolderScroll = FolderScroll.HORIZONTAL,

@@ -324,6 +324,7 @@
     <string name="preview_radial_dense">Dense ring</string>
     <string name="preview_grid_3x3">3 × 3 grid</string>
     <string name="folder_mode">Folder open style</string>
+    <string name="folder_backdrop_opacity">Background dimming</string>
     <string name="folder_mode_window">Window</string>
     <string name="folder_mode_immersive">Full screen</string>
     <string name="folder_scroll">Folder scrolling</string>

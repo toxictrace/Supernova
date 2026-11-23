@@ -1376,6 +1376,15 @@ object SettingsCatalogue {
                 // The open folder.
                 SettingItem.Header(R.string.group_folder_window),
                 SettingItem.Slider(
+                    R.string.folder_backdrop_opacity,
+                    min = 0, max = 90,
+                    step = 5,
+                    get = { (it.folderBackdropOpacity * 100f).roundToInt() },
+                    set = { viewModel.set(Pref.folderBackdropOpacity, it / 100f) },
+                    display = { context.getString(R.string.opacity_percent, it) },
+                    preview = { p, v -> p.copy(folderBackdropOpacity = v / 100f) }
+                ),
+                SettingItem.Slider(
                     R.string.folder_columns,
                     min = 0, max = com.supernova.launcher.data.GridLimits.FOLDER_COLUMNS,
                     bigGridMax = com.supernova.launcher.data.GridLimits.FOLDER_COLUMNS_BIG,

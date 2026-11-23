@@ -55,6 +55,8 @@ class FolderPopup(private val context: Context) {
         // so the only thing that could cut this shadow off is the card sitting
         // too close to the window's edge, which the margin below covers.
         shadow: Boolean = true,
+        // Opacity of the black backdrop behind the open folder.
+        scrimOpacity: Float = 0.7f,
         // Animations.enabled: false skips the open/close transition.
         animate: Boolean = true,
         // Duration multiplier from the animation-speed pref.
@@ -225,8 +227,9 @@ class FolderPopup(private val context: Context) {
         }
 
         // The root always fills the window so the card can expand from the
-        // icon underneath it; WINDOW mode just keeps the scrim transparent.
-        if (immersive) binding.folderScrim.setBackgroundColor(IMMERSIVE_SCRIM)
+        // icon underneath it. Both folder modes use the same adjustable backdrop.
+        val scrimAlpha = (scrimOpacity.coerceIn(0f, 0.9f) * 255f).toInt()
+        binding.folderScrim.setBackgroundColor(android.graphics.Color.argb(scrimAlpha, 0, 0, 0))
         binding.folderCard.layoutParams = FrameLayout.LayoutParams(
             if (immersive) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -300,7 +303,21 @@ class FolderPopup(private val context: Context) {
             if (bottom - top != oldBottom - oldTop) clearKeyboard()
         }
 
+        val activityContent = anchor.rootView.findViewById<View>(android.R.id.content)
+        val originalLayerType = activityContent?.layerType ?: View.LAYER_TYPE_NONE
+        if (activityContent != null && originalLayerType == View.LAYER_TYPE_NONE) {
+            val grayscale = android.graphics.ColorMatrix().apply { setSaturation(0f) }
+            val paint = android.graphics.Paint().apply {
+                colorFilter = android.graphics.ColorMatrixColorFilter(grayscale)
+            }
+            activityContent.setLayerType(View.LAYER_TYPE_HARDWARE, paint)
+        }
+
         popup.setOnDismissListener {
+            // Restore the activity rendering on every dismissal path.
+            if (activityContent != null && originalLayerType == View.LAYER_TYPE_NONE) {
+                activityContent.setLayerType(originalLayerType, null)
+            }
             val newName = binding.folderTitle.text?.toString().orEmpty()
             if (newName.isNotBlank() && newName != title) onRename(newName)
             onDismiss?.invoke()
@@ -503,9 +520,6 @@ class FolderPopup(private val context: Context) {
                     .coerceAtMost(count.coerceAtLeast(2))
             }
         }
-
-        // 70%-black dim behind the immersive card (#B3000000).
-        private const val IMMERSIVE_SCRIM = -0x4D000000
 
         // Member tile width at the base icon size: the 48dp icon plus room
         // for a one-line 12sp label.

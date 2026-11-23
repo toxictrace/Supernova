@@ -264,6 +264,7 @@ object Pref {
     val folderShowCount = bool("folder_show_count")
     val folderMode = choice("folder_mode", FolderMode.entries)
     val folderShadow = bool("folder_shadow")
+    val folderBackdropOpacity = float("folder_backdrop_opacity", 0f..0.9f)
     val folderScroll = choice("folder_scroll", FolderScroll.entries)
     val folderIconShape = text("folder_icon_shape")
     val folderIconOutline = bool("folder_icon_outline")
