@@ -851,26 +851,42 @@ class LauncherRepository(private val context: Context) {
     // user having exported anything. Kept out of the export path's way.
     private val autoBackupDir: File get() = File(context.filesDir, "auto_backups")
 
-    // Whether the snapshot was written.
-    suspend fun writeAutoBackup(prefs: LauncherPrefs): Boolean = runLogged("write automatic backup") {
-        val payload = exportBackup(prefs)
-        autoBackupDir.mkdirs()
-        val written = File(autoBackupDir, "layout-${System.currentTimeMillis()}.json")
-        written.writeText(payload)
-        // The newest by name are kept, but never at the cost of the one
-        // just written: a clock set back names it older than the rest, and
-        // the snapshot taken before a reset or an import must survive.
-        autoBackupDir.listFiles()
-            ?.filter { it != written }
-            ?.sortedByDescending { it.name }
-            ?.drop(AUTO_BACKUP_KEEP - 1)
-            ?.forEach { it.delete() }
-    }.isSuccess
+    // Public snapshots and destructive operations share the layout lock.
+    suspend fun writeAutoBackup(prefs: LauncherPrefs): Boolean = withContext(Dispatchers.IO) {
+        lock.withLock { writeAutoBackupLocked(prefs) }
+    }
+
+    // The caller holds [lock], so the model cannot change between this
+    // snapshot and a restore or reset that replaces it.
+    private suspend fun writeAutoBackupLocked(prefs: LauncherPrefs): Boolean =
+        runLogged("write automatic backup") {
+            val payload = exportBackupLocked(prefs)
+            check(autoBackupDir.isDirectory || autoBackupDir.mkdirs()) { "can't create automatic backup folder" }
+            val written = File(
+                autoBackupDir,
+                "layout-${System.currentTimeMillis()}-${UUID.randomUUID()}.json"
+            )
+            BackupFileWriter.writeAtomically(written, payload)
+            // Ignore interrupted temporary files and retain only complete snapshots.
+            autoBackupDir.listFiles()
+                ?.filter { it.isFile && it.name.startsWith("layout-") && it.name.endsWith(".json") && it != written }
+                ?.sortedByDescending { it.name }
+                ?.drop(AUTO_BACKUP_KEEP - 1)
+                ?.forEach { it.delete() }
+        }.isSuccess
 
     fun autoBackups(): List<File> =
-        autoBackupDir.listFiles()?.sortedByDescending { it.name }.orEmpty()
+        autoBackupDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith("layout-") && it.name.endsWith(".json") }
+            ?.sortedByDescending { it.name }
+            .orEmpty()
 
-    suspend fun exportBackup(prefs: LauncherPrefs): String {
+    suspend fun exportBackup(prefs: LauncherPrefs): String = lock.withLock {
+        exportBackupLocked(prefs)
+    }
+
+    // The caller holds [lock], giving the exported model a consistent snapshot.
+    private suspend fun exportBackupLocked(prefs: LauncherPrefs): String {
         val model = modelFlow.first()
         val payload = BackupPayload(
             exportedAtEpochMs = System.currentTimeMillis(),
@@ -989,10 +1005,10 @@ class LauncherRepository(private val context: Context) {
         // What is being replaced stays recoverable from Automatic backups, as
         // Reset's does: without that snapshot, no import. Written under the
         // lock, so no layout edit lands in between and is lost.
-        if (snapshotFirst) {
-            check(writeAutoBackup(currentPrefs)) { "couldn't save a backup of the current layout first" }
-        }
         lock.withLock {
+            if (snapshotFirst) {
+                check(writeAutoBackupLocked(currentPrefs)) { "couldn't save a backup of the current layout first" }
+            }
             context.supernovaStore.edit { prefs ->
                 prefs[StoreKeys.model] = json.encodeToString(validated)
                 LauncherPreferences.writeAll(prefs, restoredPrefs)
@@ -1035,8 +1051,8 @@ class LauncherRepository(private val context: Context) {
     // regardless.
     suspend fun resetToDefaults(prefs: LauncherPrefs, fresh: LauncherPrefs) {
         // No snapshot, no reset: the reset has to be undoable.
-        check(writeAutoBackup(prefs)) { "couldn't save a backup first" }
         lock.withLock {
+            check(writeAutoBackupLocked(prefs)) { "couldn't save a backup first" }
             context.supernovaStore.edit { target ->
                 target[StoreKeys.model] = json.encodeToString(LauncherModel(version = CURRENT_MODEL_VERSION))
                 LauncherPreferences.writeAll(target, fresh)
