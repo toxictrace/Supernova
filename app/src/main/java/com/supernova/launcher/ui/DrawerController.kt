@@ -85,6 +85,7 @@ class DrawerController(
 
     private fun newCellAdapter(): AppDrawerAdapter = AppDrawerAdapter(
         appCatalog = viewModel.appCatalog(),
+        iconGeneration = { viewModel.state.value.iconGeneration },
         decorateIcon = decorateIcon,
         decorateFolderIcon = { icon, folder -> decorateFolderIcon(icon, folder.members) },
         onClick = { view, app -> onAppClick(view, app) },

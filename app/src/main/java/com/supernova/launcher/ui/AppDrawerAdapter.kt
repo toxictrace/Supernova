@@ -18,6 +18,7 @@ import kotlin.math.roundToInt
 
 class AppDrawerAdapter(
     private val appCatalog: AppCatalog,
+    private val iconGeneration: () -> Int,
     private val decorateIcon: (Drawable?, LaunchableApp) -> Drawable?,
     private val decorateFolderIcon: (Drawable, FolderEntry) -> Drawable = { icon, _ -> icon },
     private val onClick: (View, LaunchableApp) -> Unit,
@@ -570,6 +571,7 @@ class AppDrawerAdapter(
     // icon setting changed) or shows none (recycled from another app).
     private fun bindIcon(view: android.widget.ImageView, app: LaunchableApp) {
         val key = "${app.userSerial}/${app.packageName}/${app.className}"
+        val generation = iconGeneration()
         val cached = appCatalog.cachedIcon(app)
         if (cached != null) {
             view.setTag(R.id.tag_icon_app, key)
@@ -581,7 +583,7 @@ class AppDrawerAdapter(
         IconThread.render(appCatalog, app) { icon ->
             // The cache wins over a render that an icon change has since
             // evicted and redrawn.
-            if (view.getTag(R.id.tag_icon_app) == key) {
+            if (view.getTag(R.id.tag_icon_app) == key && iconGeneration() == generation) {
                 view.setImageDrawable(decorateIcon(appCatalog.cachedIcon(app) ?: icon, app))
             }
         }

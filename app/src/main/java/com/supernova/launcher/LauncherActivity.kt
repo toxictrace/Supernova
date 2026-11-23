@@ -1963,6 +1963,10 @@ class LauncherActivity :
                     // are evicted moments later. The generation going 0 -> 1
                     // brings us straight back here.
                     if (!state.iconsReady) return@collect
+                    if (state.iconGeneration != lastRenderedIconGeneration) {
+                        lastRenderedIconGeneration = state.iconGeneration
+                        lastItemIcons.clear()
+                    }
                     if (!reportedFullyDrawn) {
                         reportedFullyDrawn = true
                         runCatching { reportFullyDrawn() }
@@ -4766,13 +4770,17 @@ class LauncherActivity :
     // nothing yet), rendered on the icon thread, and `onLate` runs on the
     // main thread once it is in. A bind used to render it right there.
     private fun itemIcon(item: LauncherItem, onLate: () -> Unit): android.graphics.drawable.Drawable? {
+        val generation = viewModel.state.value.iconGeneration
+        val onCurrentGeneration = {
+            if (viewModel.state.value.iconGeneration == generation) onLate()
+        }
         val app = item.toLaunchableApp()
         val shown = lastItemIcons[item.id]
         val fresh = when (item.itemType) {
-            ItemType.FOLDER -> itemIcons.folderPreviewDrawable(item, onLate, pendingAsNull = shown != null)
+            ItemType.FOLDER -> itemIcons.folderPreviewDrawable(item, onCurrentGeneration, pendingAsNull = shown != null)
             ItemType.WIDGET -> getDrawable(R.drawable.ic_widget)
-            ItemType.APP -> if (app == null) getDrawable(R.drawable.ic_supernova) else appItemIcon(item, app, onLate)
-            ItemType.SHORTCUT -> when (val look = itemIcons.shortcutLook(item, onLate)) {
+            ItemType.APP -> if (app == null) getDrawable(R.drawable.ic_supernova) else appItemIcon(item, app, onCurrentGeneration)
+            ItemType.SHORTCUT -> when (val look = itemIcons.shortcutLook(item, onCurrentGeneration)) {
                 null -> null
                 else -> look.icon ?: app?.let { appItemIcon(item, it, onLate) } ?: getDrawable(R.drawable.ic_supernova)
             }
@@ -4796,6 +4804,7 @@ class LauncherActivity :
 
     // Each home and dock item's last icon (before its badge), by item id.
     private val lastItemIcons = HashMap<String, android.graphics.drawable.Drawable>()
+    private var lastRenderedIconGeneration = -1
 
     // An item view's icon drawn again where it is (a badge moved).
     private fun redrawItemView(view: View, item: LauncherItem) {
