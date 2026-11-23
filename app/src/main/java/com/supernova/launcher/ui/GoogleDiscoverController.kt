@@ -8,6 +8,8 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
@@ -36,13 +38,20 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var destroyed = false
     private var directBound = false
     private var bridgeBound = false
-    private var retryBlocked = false
     private var companionInstalled = companionPackageInstalled()
     private var attached = false
     private var windowAttached = false
     private var bridge: IDiscoverBridge? = null
     private var overlay: ILauncherOverlay? = null
     private var apiVersion = 1
+    private val reconnectHandler = Handler(Looper.getMainLooper())
+    private var reconnectAttempt = 0
+    private val reconnectRunnable = Runnable {
+        if (enabled && started && !destroyed && !directBound && !bridgeBound) {
+            Log.i(TAG, "Retrying Discover bridge connection")
+            connect()
+        }
+    }
 
     private val touchSlop = ViewConfiguration.get(activity).scaledTouchSlop
     private var tracking = false
@@ -117,41 +126,48 @@ class GoogleDiscoverController(private val activity: Activity) {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
-            bridge = IDiscoverBridge.Stub.asInterface(service)
-            try {
-                bridge?.bindService(
-                    bridgeCallback,
-                    Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
-                )
-                Log.i(TAG, "Connected to Discover bridge service")
-            } catch (error: RemoteException) {
-                Log.w(TAG, "Unable to request Google overlay through bridge", error)
-                bindingFailed("bridge request failed", name)
+            activity.runOnUiThread {
+                reconnectHandler.removeCallbacks(reconnectRunnable)
+                reconnectAttempt = 0
+                bridge = IDiscoverBridge.Stub.asInterface(service)
+                try {
+                    bridge?.bindService(
+                        bridgeCallback,
+                        Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
+                    )
+                    Log.i(TAG, "Connected to Discover bridge service")
+                } catch (error: RemoteException) {
+                    Log.w(TAG, "Unable to request Google overlay through bridge", error)
+                    bindingFailed("bridge request failed", name)
+                }
             }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            finishScroll()
-            bridge = null
-            overlay = null
-            windowAttached = false
-            bridgeBound = false
-            Log.w(TAG, "Discover bridge service disconnected")
+            activity.runOnUiThread {
+                finishScroll()
+                bridge = null
+                overlay = null
+                windowAttached = false
+                // Android retains this binding and reconnects when the service returns.
+                Log.w(TAG, "Discover bridge service disconnected; awaiting system reconnection")
+            }
         }
 
         override fun onBindingDied(name: ComponentName) {
-            bindingFailed("bridge binding died", name)
+            activity.runOnUiThread { bindingFailed("bridge binding died", name) }
         }
 
         override fun onNullBinding(name: ComponentName) {
-            bindingFailed("bridge returned null binding", name)
+            activity.runOnUiThread { bindingFailed("bridge returned null binding", name) }
         }
     }
 
     fun setEnabled(value: Boolean) {
         if (enabled == value || destroyed) return
         enabled = value
-        retryBlocked = false
+        reconnectHandler.removeCallbacks(reconnectRunnable)
+        reconnectAttempt = 0
         if (value) {
             if (started) connect()
         } else {
@@ -174,7 +190,6 @@ class GoogleDiscoverController(private val activity: Activity) {
         val installedNow = companionPackageInstalled()
         if (installedNow != companionInstalled) {
             companionInstalled = installedNow
-            retryBlocked = false
             if (!installedNow) {
                 disconnect()
                 Log.i(TAG, "Google Companion was removed")
@@ -183,7 +198,8 @@ class GoogleDiscoverController(private val activity: Activity) {
             }
         }
 
-        if (enabled && started && !directBound && !bridgeBound && !retryBlocked) {
+        if (enabled && started && !directBound && !bridgeBound) {
+            reconnectHandler.removeCallbacks(reconnectRunnable)
             connect()
         }
         updateActivityState()
@@ -314,7 +330,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     }
 
     private fun connect() {
-        if (!enabled || !started || destroyed || directBound || bridgeBound || retryBlocked) return
+        if (!enabled || !started || destroyed || directBound || bridgeBound) return
 
         val googleIntent = googleOverlayIntent()
         val resolvedGoogle = runCatching {
@@ -353,7 +369,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     }
 
     private fun connectBridge() {
-        if (!enabled || !started || destroyed || directBound || bridgeBound || retryBlocked) return
+        if (!enabled || !started || destroyed || directBound || bridgeBound) return
         if (!companionPackageInstalled()) {
             Log.w(TAG, "Google Companion is not installed; direct overlay binding failed")
             return
@@ -384,7 +400,10 @@ class GoogleDiscoverController(private val activity: Activity) {
             false
         }
         Log.i(TAG, "Discover bridge bindService returned $bridgeBound")
-        if (!bridgeBound) Log.w(TAG, "Discover bridge is unavailable")
+        if (!bridgeBound) {
+            Log.w(TAG, "Discover bridge is unavailable")
+            scheduleReconnect("bridge bindService returned false")
+        }
     }
 
     private fun fallbackToBridge(reason: String, name: ComponentName) {
@@ -474,6 +493,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     }
 
     private fun disconnect() {
+        reconnectHandler.removeCallbacks(reconnectRunnable)
         finishScroll()
         detachWindow()
         releaseDirectConnection()
@@ -497,8 +517,16 @@ class GoogleDiscoverController(private val activity: Activity) {
         bridge = null
         overlay = null
         windowAttached = false
-        retryBlocked = true
-        Log.w(TAG, "Discover bridge reconnect paused until the setting is toggled off and on")
+        scheduleReconnect(reason)
+    }
+
+    private fun scheduleReconnect(reason: String) {
+        if (!enabled || !started || destroyed) return
+        reconnectAttempt = (reconnectAttempt + 1).coerceAtMost(MAX_RECONNECT_ATTEMPTS)
+        val delayMs = (1_000L shl (reconnectAttempt - 1)).coerceAtMost(MAX_RECONNECT_DELAY_MS)
+        reconnectHandler.removeCallbacks(reconnectRunnable)
+        Log.w(TAG, "Scheduling Discover bridge reconnect in ${delayMs}ms: $reason")
+        reconnectHandler.postDelayed(reconnectRunnable, delayMs)
     }
 
     private companion object {
@@ -508,5 +536,7 @@ class GoogleDiscoverController(private val activity: Activity) {
         const val OVERLAY_ACTION = "com.android.launcher3.WINDOW_OVERLAY"
         const val CLIENT_OPTIONS = 15
         const val DIRECTION_BIAS = 1.2f
+        const val MAX_RECONNECT_ATTEMPTS = 6
+        const val MAX_RECONNECT_DELAY_MS = 30_000L
     }
 }
