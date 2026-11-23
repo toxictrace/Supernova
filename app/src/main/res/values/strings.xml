@@ -943,6 +943,10 @@
 
     <!-- Phase 6: notification bar / system chrome -->
     <string name="hide_status_bar">Hide status bar</string>
+    <string name="root_settings">Root settings</string>
+    <string name="root_hide_clock">Hide clock</string>
+    <string name="root_settings_required">Root access is required for this option.</string>
+    <string name="root_settings_operation_failed">Could not change the status bar clock. Check root access and try again.</string>
     <string name="status_bar_icons">Status bar icon color</string>
     <string name="status_icons_auto">Follow theme</string>
     <string name="status_icons_wallpaper">Based on wallpaper</string>

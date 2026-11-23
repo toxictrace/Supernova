@@ -126,7 +126,9 @@ object SettingsCatalogue {
         val openNotificationAccess: () -> Unit = {},
         // Opens a section by title (a built-in card's own settings page,
         // the Desktop search bar page).
-        val openSection: (Int) -> Unit = {}
+        val openSection: (Int) -> Unit = {},
+        val onRootSettingsChanged: (Boolean) -> Unit = {},
+        val onRootClockChanged: (Boolean) -> Unit = {}
     )
 
     // Builds the rows whose tap offers one value out of a list. The pick
@@ -495,6 +497,18 @@ object SettingsCatalogue {
                     get = { it.hideStatusBar },
                     set = { viewModel.set(Pref.hideStatusBar, it) }
                 ),
+                SettingItem.Toggle(
+                    R.string.root_settings,
+                    get = { it.rootSettingsEnabled },
+                    set = actions.onRootSettingsChanged
+                ),
+                SettingItem.Toggle(
+                    R.string.root_hide_clock,
+                    get = { it.rootHideClock },
+                    set = actions.onRootClockChanged
+                ).hiddenWhen {
+                    needsOn(R.string.root_settings, !it.rootSettingsEnabled)
+                }.nested(),
                 rows.choice(
                     R.string.status_bar_icons, StatusBarIcons.entries,
                     { it.darkStatusIcons }, { EnumLabels.of(it) }

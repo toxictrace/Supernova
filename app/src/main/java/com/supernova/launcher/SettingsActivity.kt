@@ -76,8 +76,10 @@ import com.supernova.launcher.ui.theme.Styles
 import com.supernova.launcher.ui.theme.SurfaceId
 import com.supernova.launcher.ui.theme.ThemeEngine
 import com.supernova.launcher.widget.SupernovaWidgetHost
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -616,7 +618,67 @@ class SettingsActivity : AppCompatActivity() {
                     requestContacts = ::requestFeedContactsIfNeeded
                 )
             },
-            openSection = { title -> navigateTo(title, 0) }
+            openSection = { title -> navigateTo(title, 0) },
+            onRootSettingsChanged = { enabled ->
+                lifecycleScope.launch {
+                    if (enabled) {
+                        val granted = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.hasRoot()
+                        }
+                        if (granted) {
+                            viewModel.set(Pref.rootSettingsEnabled, true)
+                        } else {
+                            showRootSettingsMessage(R.string.root_settings_required)
+                            render()
+                        }
+                    } else {
+                        val prefs = viewModel.state.value.prefs
+                        val restored = !prefs.rootHideClock || withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
+                                prefs.rootClockAddedToBlacklist
+                            )
+                        }
+                        if (restored) {
+                            viewModel.set(Pref.rootHideClock, false)
+                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                            viewModel.set(Pref.rootSettingsEnabled, false)
+                        } else {
+                            showRootSettingsMessage(R.string.root_settings_operation_failed)
+                            render()
+                        }
+                    }
+                }
+            },
+            onRootClockChanged = { hidden ->
+                lifecycleScope.launch {
+                    val prefs = viewModel.state.value.prefs
+                    if (hidden) {
+                        val added = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
+                        }
+                        if (added != null) {
+                            viewModel.set(Pref.rootClockAddedToBlacklist, added)
+                            viewModel.set(Pref.rootHideClock, true)
+                        } else {
+                            showRootSettingsMessage(R.string.root_settings_operation_failed)
+                            render()
+                        }
+                    } else {
+                        val restored = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
+                                prefs.rootClockAddedToBlacklist
+                            )
+                        }
+                        if (restored) {
+                            viewModel.set(Pref.rootHideClock, false)
+                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                        } else {
+                            showRootSettingsMessage(R.string.root_settings_operation_failed)
+                            render()
+                        }
+                    }
+                }
+            }
         )
         sections = SettingsCatalogue.sections(context = this, viewModel = viewModel, actions = actions)
         styleSection = SettingsCatalogue.styleSection(context = this, viewModel = viewModel, actions = actions)
@@ -793,6 +855,14 @@ class SettingsActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         saveOpenAccordions()
+    }
+
+    private fun showRootSettingsMessage(message: Int) {
+        if (isFinishing || isDestroyed) return
+        MaterialAlertDialogBuilder(this)
+            .setMessage(message)
+            .setPositiveButton(R.string.ok, null)
+            .show()
     }
 
     // The open Advanced sections and nested switches, kept across launches.

@@ -915,6 +915,10 @@
     <string name="apk_saved_base">Базовый APK сохранён. Приложение использует разделённые APK.</string>
     <string name="apk_save_failed">Не удалось сохранить APK</string>
     <string name="hide_status_bar">Скрыть строку состояния</string>
+    <string name="root_settings">Root настройки</string>
+    <string name="root_hide_clock">Скрыть часы</string>
+    <string name="root_settings_required">Для этой опции нужны рут-права.</string>
+    <string name="root_settings_operation_failed">Не удалось изменить отображение часов. Проверьте root-доступ.</string>
     <string name="status_bar_icons">Цвет значков строки состояния</string>
     <string name="status_icons_auto">Как в теме</string>
     <string name="status_icons_wallpaper">По обоям</string>

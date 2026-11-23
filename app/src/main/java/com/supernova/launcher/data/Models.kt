@@ -522,6 +522,9 @@ data class LauncherPrefs(
     // System chrome: status bar hidden on the launcher, forced icon tint
     // (ui/StatusBarIcons name; AUTO follows the theme), nav bar transparency.
     val hideStatusBar: Boolean = false,
+    val rootSettingsEnabled: Boolean = false,
+    val rootHideClock: Boolean = false,
+    val rootClockAddedToBlacklist: Boolean = false,
     val darkStatusIcons: StatusBarIcons = StatusBarIcons.AUTO,
     val transparentNav: Boolean = true,
     // Nav bar button tint (ui/NavBarButtons); AUTO follows the theme.

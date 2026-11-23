@@ -47,6 +47,13 @@ class PrefRegistryTest {
     }
 
     @Test
+    fun `root settings are disabled by default`() {
+        assertFalse(LauncherPrefs().rootSettingsEnabled)
+        assertFalse(LauncherPrefs().rootHideClock)
+        assertFalse(LauncherPrefs().rootClockAddedToBlacklist)
+    }
+
+    @Test
     fun `frequent apps row is enabled only on All by default`() {
         assertTrue(LauncherPrefs().drawerFrequentRow)
         assertFalse(LauncherPrefs().drawerFrequentRowAllTabs)
