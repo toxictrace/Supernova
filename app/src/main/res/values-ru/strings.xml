@@ -177,7 +177,10 @@
     <string name="drawer_tab_bar_hidden_note">Панель вкладок скрыта. В меню отображаются все приложения.</string>
     <string name="drawer_tab_bar_no_tabs">%1$s · добавьте вкладки в разделе «Группы меню приложений»</string>
     <string name="drawer_frequent_row">Верхний ряд</string>
-    <string name="drawer_frequent_row_summary">Показывать одинаковые часто используемые приложения на всех вкладках меню</string>
+    <string name="drawer_frequent_row_summary">Показывать часто используемые приложения на вкладке «Все»</string>
+    <string name="drawer_frequent_row_options">Дополнительные настройки</string>
+    <string name="drawer_frequent_row_all_tabs">Показывать на всех вкладках</string>
+    <string name="drawer_frequent_row_all_tabs_summary">Также показывать одинаковый список частых приложений на остальных вкладках</string>
     <string name="drawer_frequent_row_padding_h">Отступ от краёв верхнего ряда</string>
     <string name="drawer_frequent_row_spacing">Расстояние между значками</string>
     <string name="drawer_sort_buttons">Кнопки сортировки</string>

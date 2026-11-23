@@ -1813,7 +1813,9 @@ class DrawerController(
     private fun updateFrequentRow() {
         val prefs = viewModel.state.value.prefs
         val searching = !binding.drawerSearch.text.isNullOrBlank()
-        if (!prefs.drawerFrequentRow || searching) {
+        if (!prefs.drawerFrequentRow || searching ||
+            (selectedTab != null && !prefs.drawerFrequentRowAllTabs)
+        ) {
             setFrequentRowVisible(prefs, false, list = !searching)
             return
         }

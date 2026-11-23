@@ -210,6 +210,7 @@ object Pref {
     val drawerTabsNoSwipe = bool("drawer_tabs_no_swipe")
     val drawerTabsLoop = bool("drawer_tabs_loop")
     val drawerFrequentRow = bool("drawer_frequent_row")
+    val drawerFrequentRowAllTabs = bool("drawer_frequent_row_all_tabs")
     val drawerFrequentRowPaddingH = int("drawer_frequent_row_padding_h", 0..DESKTOP_PADDING_MAX)
     val drawerFrequentRowSpacing = int("drawer_frequent_row_spacing", 0..24)
     val drawerRememberPosition = bool("drawer_remember_position")

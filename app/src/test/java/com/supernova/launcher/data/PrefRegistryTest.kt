@@ -47,6 +47,12 @@ class PrefRegistryTest {
     }
 
     @Test
+    fun `frequent apps row is enabled on all tabs by default`() {
+        assertTrue(LauncherPrefs().drawerFrequentRow)
+        assertTrue(LauncherPrefs().drawerFrequentRowAllTabs)
+    }
+
+    @Test
     fun `every setting survives a read and a write`() {
         val defaults = mutablePreferencesOf().also { LauncherPreferences.writeAll(it, LauncherPrefs()) }
         val changed = mutablePreferencesOf()

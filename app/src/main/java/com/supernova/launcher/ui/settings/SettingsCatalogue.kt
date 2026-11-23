@@ -827,20 +827,29 @@ object SettingsCatalogue {
                     set = { viewModel.set(Pref.drawerFrequentRow, it) },
                     subtitle = R.string.drawer_frequent_row_summary
                 ),
+                SettingItem.Accordion(R.string.drawer_frequent_row_options).hiddenWhen {
+                    needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow)
+                },
+                SettingItem.Toggle(
+                    R.string.drawer_frequent_row_all_tabs,
+                    get = { it.drawerFrequentRowAllTabs },
+                    set = { viewModel.set(Pref.drawerFrequentRowAllTabs, it) },
+                    subtitle = R.string.drawer_frequent_row_all_tabs_summary
+                ).hiddenWhen { needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow) },
                 SettingItem.Slider(
                     R.string.drawer_frequent_row_padding_h,
                     min = 0, max = 48, step = 2,
                     get = { it.drawerFrequentRowPaddingH },
                     set = { viewModel.set(Pref.drawerFrequentRowPaddingH, it) },
                     display = { context.getString(R.string.padding_dp_value, it) }
-                ).hiddenWhen { needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow) }.nested(),
+                ).hiddenWhen { needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow) },
                 SettingItem.Slider(
                     R.string.drawer_frequent_row_spacing,
                     min = 0, max = 24, step = 2,
                     get = { it.drawerFrequentRowSpacing },
                     set = { viewModel.set(Pref.drawerFrequentRowSpacing, it) },
                     display = { context.getString(R.string.padding_dp_value, it) }
-                ).hiddenWhen { needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow) }.nested(),
+                ).hiddenWhen { needsOff(R.string.drawer_frequent_row, it.drawerFrequentRow) },
                 // Horizontal Scroll group: paged style only.
                 SettingItem.Toggle(
                     R.string.drawer_infinite_scroll,
