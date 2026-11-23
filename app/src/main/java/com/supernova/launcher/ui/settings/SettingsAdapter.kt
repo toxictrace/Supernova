@@ -629,7 +629,18 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
                 resolved.cornerRadiiDp?.let { dpArr -> FloatArray(4) { dpArr[it] * density } },
                 12f * density
             )
-            binding.styleStripText.setTextColor(resolved.text)
+            val labelColor = when (item.surface) {
+                com.supernova.launcher.ui.theme.SurfaceId.HOME ->
+                    com.supernova.launcher.ui.LabelStyler.parseColor(prefs.desktopLabelColor, resolved.text)
+                com.supernova.launcher.ui.theme.SurfaceId.DOCK ->
+                    com.supernova.launcher.ui.LabelStyler.parseColor(prefs.dockLabelColor, resolved.text)
+                else -> resolved.text
+            }
+            binding.styleStripText.setTextColor(labelColor)
+            binding.styleStripAccent.visibility = if (
+                item.surface == com.supernova.launcher.ui.theme.SurfaceId.HOME ||
+                item.surface == com.supernova.launcher.ui.theme.SurfaceId.DOCK
+            ) View.GONE else View.VISIBLE
             binding.styleStripAccent.background = android.graphics.drawable.GradientDrawable().apply {
                 shape = android.graphics.drawable.GradientDrawable.OVAL
                 setColor(resolved.accent)

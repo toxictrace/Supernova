@@ -82,7 +82,7 @@ object StylePickerSheet {
             SurfaceId.DOCK -> prefs.dockLabelColor
             else -> ""
         }
-        var slot = if (surfaceId == SurfaceId.HOME) Slot.TEXT else Slot.SURFACE
+        var slot = Slot.SURFACE
 
         binding.styleTitle.setText(EnumLabels.of(surfaceId))
 
@@ -369,10 +369,11 @@ object StylePickerSheet {
         }
 
         if (surfaceId == SurfaceId.HOME) {
-            // The home surface only edits icon label text; its background remains separate.
-            listOf(binding.slotSurface, binding.slotAccent, binding.stripAccent).forEach {
+            // Home supports both its background and icon label text, but has no accent slot.
+            listOf(binding.slotAccent, binding.stripAccent).forEach {
                 it.visibility = android.view.View.GONE
             }
+            binding.slotSurface.visibility = android.view.View.VISIBLE
             binding.slotText.visibility = android.view.View.VISIBLE
             binding.stripText.visibility = android.view.View.VISIBLE
         }
