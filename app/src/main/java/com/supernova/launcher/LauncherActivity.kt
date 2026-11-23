@@ -2005,7 +2005,7 @@ class LauncherActivity :
                         workspaceAdapter.realPageCount,
                         state.prefs.pageIndicatorAutoHide,
                         LabelStyler.parseColor(
-                            state.prefs.pageIndicatorColor.ifEmpty { state.prefs.labelColor },
+                            state.prefs.pageIndicatorColor.ifEmpty { state.prefs.desktopLabelColor },
                             getColor(R.color.onWallpaper)
                         ),
                         Animations.factor(state.prefs)
@@ -2464,7 +2464,7 @@ class LauncherActivity :
             prefs.dockBgBehindNav, prefs.dockBgPadding,
             // What a landscape dock's width is worked out from.
             prefs.dockCount, prefs.iconScale, prefs.dockIconScale, prefs.dockMatchDesktop,
-            swipeArrowWanted(prefs), prefs.labelColor,
+            swipeArrowWanted(prefs), prefs.desktopLabelColor,
             prefs.pageIndicatorStyle != IndicatorStyle.NONE, prefs.desktopPaddingV,
             systemInsets, dockHeightPx, isLandscape
         )
@@ -2537,7 +2537,7 @@ class LauncherActivity :
         val density = resources.displayMetrics.density
         val arrowWanted = swipeArrowWanted(prefs)
         val arrow = if (arrowWanted) {
-            SwipeArrowDrawable(density, LabelStyler.parseColor(prefs.labelColor, getColor(R.color.onWallpaper)))
+            SwipeArrowDrawable(density, LabelStyler.parseColor(prefs.desktopLabelColor, getColor(R.color.onWallpaper)))
         } else {
             null
         }
@@ -4917,7 +4917,7 @@ class LauncherActivity :
             if (prefs.iconSwipeIndicator && (item.swipeAction != null || item.swipeActionDown != null || item.swipeToOpen)) {
                 com.supernova.launcher.ui.SwipeIndicatorDrawable(
                     resources.displayMetrics.density,
-                    LabelStyler.parseColor(prefs.labelColor, getColor(R.color.onWallpaper))
+                    LabelStyler.parseColor(if (inDock) prefs.dockLabelColor else prefs.desktopLabelColor, getColor(R.color.onWallpaper))
                 )
             } else {
                 null

@@ -434,6 +434,9 @@ object SettingsCatalogue {
                         R.string.label_shadow, R.string.label_single_line
                     )
                 ),
+                rows.color(R.string.desktop_label_color, { it.desktopLabelColor }) {
+                    viewModel.set(Pref.desktopLabelColor, it)
+                },
                 SettingItem.Row(
                     R.string.desktop_grid,
                     subtitle = { context.getString(R.string.grid_value, it.gridRows, it.gridCols) },
@@ -705,6 +708,9 @@ object SettingsCatalogue {
                     // own whatever those are, and hiding the switch with
                     // them left no way to turn the dock's off.
                 ).hiddenWhen(dockHidden),
+                rows.color(R.string.dock_label_color, { it.dockLabelColor }) {
+                    viewModel.set(Pref.dockLabelColor, it)
+                }.hiddenWhen(dockHidden),
                 *labelOverrideItems(context, viewModel, actions, LabelContext.DOCK) {
                     dockHidden(it) ?: needsOn(R.string.dock_labels, !it.dockLabels)
                 }.toTypedArray(),

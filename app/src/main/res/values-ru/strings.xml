@@ -292,7 +292,9 @@
     <string name="app_icon">Значок приложения</string>
     <string name="label_size">Размер подписи</string>
     <string name="label_size_value">%1$d sp</string>
-    <string name="label_color">Цвет подписи</string>
+    <string name="label_color">Цвет подписи значков в меню приложений</string>
+    <string name="desktop_label_color">Цвет подписи значков на рабочем столе</string>
+    <string name="dock_label_color">Цвет подписи значков в доке</string>
     <string name="label_shadow">Тень подписи</string>
     <string name="icon_shadow">Тень значка</string>
     <string name="icon_glass">Стеклянный фон</string>

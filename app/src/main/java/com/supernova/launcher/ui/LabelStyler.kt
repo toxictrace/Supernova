@@ -71,7 +71,12 @@ object LabelStyler {
         }
         val size = (override.size ?: prefs.labelSize).coerceIn(9, 18)
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size.toFloat())
-        view.setTextColor(parseColor(prefs.labelColor, fallback))
+        val labelColor = when (context) {
+            LabelContext.DESKTOP -> prefs.desktopLabelColor
+            LabelContext.DOCK -> prefs.dockLabelColor
+            LabelContext.DRAWER, LabelContext.FOLDER -> prefs.labelColor
+        }
+        view.setTextColor(parseColor(labelColor, fallback))
         view.typeface = typefaceFor(override.font?.let(LabelFont::fromName) ?: prefs.labelFont)
         // Each surface declares its own maxLines in XML; remember that value
         // on the view so single-line can be undone on a recycled bind.

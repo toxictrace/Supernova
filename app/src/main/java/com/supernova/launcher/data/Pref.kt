@@ -236,6 +236,8 @@ object Pref {
     val labelSize = int("label_size", LABEL_SIZE_MIN..LABEL_SIZE_MAX)
     val labelConfig = text("label_config")
     val labelColor = text("label_color")
+    val desktopLabelColor = text("desktop_label_color")
+    val dockLabelColor = text("dock_label_color")
     val labelShadow = bool("label_shadow")
     val drawerLabels = bool("drawer_labels")
     val folderLabels = bool("folder_labels")

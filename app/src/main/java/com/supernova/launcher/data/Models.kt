@@ -312,8 +312,12 @@ data class LauncherPrefs(
     // Per-context (dock/drawer/folder) label overrides as one JSON document
     // (see ui/LabelConfig); "" = every context inherits the desktop labels.
     val labelConfig: String = "",
-    // "" = default white; else #AARRGGBB.
+    // Drawer label color; "" keeps the existing surface default.
     val labelColor: String = "",
+    // Workspace and dock label colors are independent of the app drawer.
+    // "" keeps each surface default; otherwise #AARRGGBB.
+    val desktopLabelColor: String = "",
+    val dockLabelColor: String = "",
     val labelShadow: Boolean = false,
     val drawerLabels: Boolean = true,
     val folderLabels: Boolean = true,

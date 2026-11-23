@@ -280,7 +280,9 @@
 
     <string name="label_size">Label size</string>
     <string name="label_size_value">%1$d sp</string>
-    <string name="label_color">Label color</string>
+    <string name="label_color">App drawer label color</string>
+    <string name="desktop_label_color">Home screen label color</string>
+    <string name="dock_label_color">Dock label color</string>
     <string name="label_shadow">Label shadow</string>
     <string name="icon_shadow">Icon shadow</string>
     <string name="icon_glass">Glass background</string>
