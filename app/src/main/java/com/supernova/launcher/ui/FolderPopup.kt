@@ -57,6 +57,8 @@ class FolderPopup(private val context: Context) {
         shadow: Boolean = true,
         // Opacity of the black backdrop behind the open folder.
         scrimOpacity: Float = 0.7f,
+        // Transparency of the folder card's own background.
+        cardTransparency: Float = 0f,
         // Animations.enabled: false skips the open/close transition.
         animate: Boolean = true,
         // Duration multiplier from the animation-speed pref.
@@ -236,6 +238,10 @@ class FolderPopup(private val context: Context) {
             if (immersive) Gravity.CENTER else Gravity.TOP or Gravity.START
         ).apply { if (immersive) setMargins(context.dp(24), context.dp(24), context.dp(24), context.dp(24)) }
         // The card swallows taps; only true outside taps reach the scrim.
+        binding.folderCard.background?.mutate()?.let { cardBackground ->
+            cardBackground.alpha = ((1f - cardTransparency.coerceIn(0f, 0.9f)) * 255f).toInt()
+            binding.folderCard.background = cardBackground
+        }
         binding.folderCard.isClickable = true
 
         // Where the card rests once positioned: over its icon in WINDOW mode,

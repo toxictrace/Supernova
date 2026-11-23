@@ -4294,6 +4294,7 @@ class LauncherActivity :
             showCount = prefs.folderShowCount,
             shadow = prefs.folderShadow,
             scrimOpacity = prefs.folderBackdropOpacity,
+            cardTransparency = prefs.folderSurfaceTransparency,
             animate = Animations.enabled(prefs),
             speed = Animations.factor(prefs),
             keepAboveScreenY = dockTopOnScreen(),

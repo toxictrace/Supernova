@@ -371,6 +371,8 @@ data class LauncherPrefs(
     val folderShadow: Boolean = true,
     // Black overlay over the desaturated screen while a folder is open.
     val folderBackdropOpacity: Float = 0.7f,
+    // Transparency of the open folder card's background.
+    val folderSurfaceTransparency: Float = 0f,
     // VERTICAL scrolls the folder grid; HORIZONTAL, the default, pages it
     // (FolderScroll).
     val folderScroll: FolderScroll = FolderScroll.HORIZONTAL,

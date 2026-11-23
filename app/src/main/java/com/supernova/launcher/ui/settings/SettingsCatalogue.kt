@@ -1376,6 +1376,15 @@ object SettingsCatalogue {
                 // The open folder.
                 SettingItem.Header(R.string.group_folder_window),
                 SettingItem.Slider(
+                    R.string.folder_surface_transparency,
+                    min = 0, max = 90,
+                    step = 5,
+                    get = { (it.folderSurfaceTransparency * 100f).roundToInt() },
+                    set = { viewModel.set(Pref.folderSurfaceTransparency, it / 100f) },
+                    display = { context.getString(R.string.opacity_percent, it) },
+                    preview = { p, v -> p.copy(folderSurfaceTransparency = v / 100f) }
+                ),
+                SettingItem.Slider(
                     R.string.folder_backdrop_opacity,
                     min = 0, max = 90,
                     step = 5,

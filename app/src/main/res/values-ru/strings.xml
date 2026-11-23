@@ -336,7 +336,8 @@
     <string name="preview_radial_dense">Плотное кольцо</string>
     <string name="preview_grid_3x3">Сетка 3 × 3</string>
     <string name="folder_mode">Стиль открытия папки</string>
-    <string name="folder_backdrop_opacity">Затемнение фона папки</string>
+    <string name="folder_backdrop_opacity">Затемнение экрана при открытии папки</string>
+    <string name="folder_surface_transparency">Прозрачность подложки папки</string>
     <string name="folder_mode_window">Окно</string>
     <string name="folder_mode_immersive">На весь экран</string>
     <string name="folder_scroll">Прокрутка папки</string>
