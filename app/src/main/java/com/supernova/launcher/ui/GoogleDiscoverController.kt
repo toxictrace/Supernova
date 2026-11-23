@@ -34,7 +34,8 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var started = false
     private var resumed = false
     private var destroyed = false
-    private var bound = false
+    private var directBound = false
+    private var bridgeBound = false
     private var retryBlocked = false
     private var companionInstalled = companionPackageInstalled()
     private var attached = false
@@ -54,6 +55,41 @@ class GoogleDiscoverController(private val activity: Activity) {
 
         override fun overlayStatusChanged(status: Int) {
             Log.d(TAG, "Google overlay status=$status")
+        }
+    }
+
+    private val directConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            activity.runOnUiThread {
+                if (destroyed || !enabled) {
+                    releaseDirectConnection()
+                    return@runOnUiThread
+                }
+                overlay = ILauncherOverlay.Stub.asInterface(service)
+                windowAttached = false
+                attachWindow()
+                updateActivityState()
+                Log.i(TAG, "Connected directly to Google overlay service")
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            activity.runOnUiThread {
+                Log.w(TAG, "Direct Google overlay connection disconnected")
+                fallbackToBridge("direct service disconnected", name)
+            }
+        }
+
+        override fun onBindingDied(name: ComponentName) {
+            activity.runOnUiThread {
+                fallbackToBridge("direct binding died", name)
+            }
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            activity.runOnUiThread {
+                fallbackToBridge("direct service returned null binding", name)
+            }
         }
     }
 
@@ -99,6 +135,7 @@ class GoogleDiscoverController(private val activity: Activity) {
             bridge = null
             overlay = null
             windowAttached = false
+            bridgeBound = false
             Log.w(TAG, "Discover bridge service disconnected")
         }
 
@@ -146,7 +183,7 @@ class GoogleDiscoverController(private val activity: Activity) {
             }
         }
 
-        if (enabled && started && installedNow && !bound && !retryBlocked) {
+        if (enabled && started && !directBound && !bridgeBound && !retryBlocked) {
             connect()
         }
         updateActivityState()
@@ -277,7 +314,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     }
 
     private fun connect() {
-        if (!enabled || !started || destroyed || bound || retryBlocked) return
+        if (!enabled || !started || destroyed || directBound || bridgeBound || retryBlocked) return
 
         val googleIntent = googleOverlayIntent()
         val resolvedGoogle = runCatching {
@@ -293,19 +330,47 @@ class GoogleDiscoverController(private val activity: Activity) {
             "${info.versionName} (${info.longVersionCode})"
         }.getOrElse { "unavailable: ${it.javaClass.simpleName}" }
 
+        Log.i(TAG, "Google app=$googleAppVersion; overlay API=$apiVersion")
+        directBound = try {
+            activity.bindService(
+                googleIntent,
+                directConnection,
+                Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
+            )
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Google App rejected direct overlay connection", error)
+            false
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "Unable to bind Google overlay directly", error)
+            false
+        }
+
+        Log.i(TAG, "Direct Google overlay bindService returned $directBound")
+        if (directBound) return
+
+        Log.w(TAG, "Direct Google overlay binding unavailable; trying Companion bridge")
+        connectBridge()
+    }
+
+    private fun connectBridge() {
+        if (!enabled || !started || destroyed || directBound || bridgeBound || retryBlocked) return
+        if (!companionPackageInstalled()) {
+            Log.w(TAG, "Google Companion is not installed; direct overlay binding failed")
+            return
+        }
+
         val bridgeIntent = bridgeServiceIntent()
         val resolvedBridge = runCatching {
             activity.packageManager.resolveService(bridgeIntent, PackageManager.MATCH_ALL)
         }.getOrNull()
 
-        Log.i(TAG, "Google app=$googleAppVersion; overlay API=$apiVersion")
         Log.i(
             TAG,
             "Bridge resolve: component=${resolvedBridge?.serviceInfo?.packageName}/" +
                 "${resolvedBridge?.serviceInfo?.name}, exported=${resolvedBridge?.serviceInfo?.exported}"
         )
 
-        bound = try {
+        bridgeBound = try {
             activity.bindService(
                 bridgeIntent,
                 connection,
@@ -318,8 +383,25 @@ class GoogleDiscoverController(private val activity: Activity) {
             Log.w(TAG, "Unable to bind Discover bridge service", error)
             false
         }
-        Log.i(TAG, "Discover bridge bindService returned $bound")
-        if (!bound) Log.w(TAG, "Discover bridge is unavailable")
+        Log.i(TAG, "Discover bridge bindService returned $bridgeBound")
+        if (!bridgeBound) Log.w(TAG, "Discover bridge is unavailable")
+    }
+
+    private fun fallbackToBridge(reason: String, name: ComponentName) {
+        Log.w(TAG, "Direct Google overlay failed: $reason; component=${name.flattenToShortString()}")
+        finishScroll()
+        overlay = null
+        windowAttached = false
+        releaseDirectConnection()
+        connectBridge()
+    }
+
+    private fun releaseDirectConnection() {
+        if (directBound) {
+            runCatching { activity.unbindService(directConnection) }
+                .onFailure { Log.w(TAG, "Unable to unbind direct Google overlay", it) }
+        }
+        directBound = false
     }
 
     private fun bridgeServiceIntent(): Intent {
@@ -394,11 +476,12 @@ class GoogleDiscoverController(private val activity: Activity) {
     private fun disconnect() {
         finishScroll()
         detachWindow()
-        if (bound) {
+        releaseDirectConnection()
+        if (bridgeBound) {
             runCatching { activity.unbindService(connection) }
                 .onFailure { Log.w(TAG, "Unable to unbind Discover bridge service", it) }
         }
-        bound = false
+        bridgeBound = false
         bridge = null
         overlay = null
         windowAttached = false
@@ -406,11 +489,11 @@ class GoogleDiscoverController(private val activity: Activity) {
 
     private fun bindingFailed(reason: String, name: ComponentName) {
         Log.w(TAG, "Discover bridge binding failed: $reason; component=${name.flattenToShortString()}")
-        if (bound) {
+        if (bridgeBound) {
             runCatching { activity.unbindService(connection) }
                 .onFailure { Log.w(TAG, "Unable to unbind failed Discover bridge", it) }
         }
-        bound = false
+        bridgeBound = false
         bridge = null
         overlay = null
         windowAttached = false
