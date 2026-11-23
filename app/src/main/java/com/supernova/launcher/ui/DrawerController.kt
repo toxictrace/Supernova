@@ -1802,8 +1802,8 @@ class DrawerController(
             DrawerSort.RECENTLY_USED -> AppDrawerAdapter.Order.UNSORTED
         }
 
-    // The top row above the list: All tab only, hidden while a query
-    // filters, rebound only when its membership or the icons change.
+    // The same recently used apps appear above every drawer tab; a query
+    // hides the row while it filters the list.
     private var frequentRowKey: String? = null
     // Last icon generation the list was bound at; a change means per-app
     // icons moved even though the app list is identical (DiffUtil would skip).
@@ -1813,7 +1813,7 @@ class DrawerController(
     private fun updateFrequentRow() {
         val prefs = viewModel.state.value.prefs
         val searching = !binding.drawerSearch.text.isNullOrBlank()
-        if (!prefs.drawerFrequentRow || selectedTab != null || searching) {
+        if (!prefs.drawerFrequentRow || searching) {
             setFrequentRowVisible(prefs, false, list = !searching)
             return
         }
@@ -1834,7 +1834,8 @@ class DrawerController(
         val iconSizePx = (context.dp(baseDp) * iconScale(prefs)).toInt()
             .coerceAtMost((gridWidthPx() / columns - context.dp(TILE_SIDE_PADDING_DP)).coerceAtLeast(1))
         val key = apps.joinToString { "${it.userSerial}/${it.packageName}/${it.className}" } +
-            "|$columns|$textColor|$lastIconGeneration|$iconSizePx|${styleKey(prefs)}"
+            "|$columns|$textColor|$lastIconGeneration|$iconSizePx|" +
+            "${prefs.drawerFrequentRowPaddingH}|${prefs.drawerFrequentRowSpacing}|${styleKey(prefs)}"
         if (key == frequentRowKey) return
         frequentRowKey = key
         // Long-pressed, each is a drawer icon like any other: its menu, and a
@@ -1867,7 +1868,14 @@ class DrawerController(
             LabelStyler.apply(label, prefs, onWallpaper = false, context = LabelContext.DRAWER)
             label.visibility = if (prefs.drawerLabels) View.VISIBLE else View.GONE
         }
-        binding.drawerFrequentRow.bindLabeled(entries, textColor, columns, sidePaddingDp = 0, look = look)
+        binding.drawerFrequentRow.bindLabeled(
+            entries,
+            textColor,
+            columns,
+            sidePaddingDp = prefs.drawerFrequentRowPaddingH,
+            itemSpacingDp = prefs.drawerFrequentRowSpacing,
+            look = look
+        )
     }
 
     // The label prefs LabelStyler reads for the drawer and the badge prefs

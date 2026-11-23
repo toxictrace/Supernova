@@ -253,6 +253,9 @@ data class LauncherPrefs(
     val drawerTabsLoop: Boolean = false,
     // The top row over the drawer list: the recently opened apps.
     val drawerFrequentRow: Boolean = true,
+    // Symmetric inset from the drawer edges and the gap between adjacent cells, in dp.
+    val drawerFrequentRowPaddingH: Int = 0,
+    val drawerFrequentRowSpacing: Int = 0,
     // Keep the scroll position across close/reopen instead of resetting to top.
     val drawerRememberPosition: Boolean = false,
     // Hide the drawer when an app is launched from it; false keeps it open

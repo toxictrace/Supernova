@@ -166,7 +166,9 @@
     <string name="drawer_tab_bar_hidden_note">Hidden — the drawer shows all apps</string>
     <string name="drawer_tab_bar_no_tabs">%1$s · add tabs in Drawer groups</string>
     <string name="drawer_frequent_row">Top row</string>
-    <string name="drawer_frequent_row_summary">A row of apps above the app list</string>
+    <string name="drawer_frequent_row_summary">Show the same frequently used apps above every drawer tab</string>
+    <string name="drawer_frequent_row_padding_h">Horizontal edge padding</string>
+    <string name="drawer_frequent_row_spacing">Space between apps</string>
     <string name="drawer_sort_buttons">Sort buttons</string>
     <string name="drawer_sort_buttons_summary">Change the order from the top of the app list</string>
     <string name="drawer_sort_apps_desc">App order: %1$s</string>

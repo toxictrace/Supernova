@@ -82,6 +82,7 @@ class FrequentAppsRowView @JvmOverloads constructor(
         textColor: Int,
         columns: Int = 0,
         sidePaddingDp: Int = 12,
+        itemSpacingDp: Int = 0,
         look: CellLook? = null
     ) {
         removeAllViews()
@@ -92,6 +93,7 @@ class FrequentAppsRowView @JvmOverloads constructor(
         setPadding(dp(sidePaddingDp), vertical, dp(sidePaddingDp), vertical)
         val iconSize = look?.iconSizePx ?: dp(if (gridAligned) APP_ICON_DP else LABELED_ICON_DP)
         val shown = entries.take(if (gridAligned) columns else MAX_LABELED)
+        val halfGap = dp(itemSpacingDp) / 2
         shown.forEach { entry ->
             val cell = LinearLayout(context).apply {
                 orientation = VERTICAL
@@ -132,14 +134,26 @@ class FrequentAppsRowView @JvmOverloads constructor(
                 },
                 LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
             )
-            addView(
-                cell,
-                if (gridAligned) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
-                else LayoutParams(dp(LABELED_CELL_DP), LayoutParams.WRAP_CONTENT)
-            )
+            val cellParams = LayoutParams(
+                if (gridAligned) 0 else dp(LABELED_CELL_DP),
+                LayoutParams.WRAP_CONTENT,
+                if (gridAligned) 1f else 0f
+            ).apply {
+                marginStart = halfGap
+                marginEnd = halfGap
+            }
+            addView(cell, cellParams)
         }
         // Empty columns keep the filled ones at the grid's width.
-        if (gridAligned) repeat(columns - shown.size) { addView(View(context), LayoutParams(0, 1, 1f)) }
+        if (gridAligned) repeat(columns - shown.size) {
+            addView(
+                View(context),
+                LayoutParams(0, 1, 1f).apply {
+                    marginStart = halfGap
+                    marginEnd = halfGap
+                }
+            )
+        }
     }
 
 
