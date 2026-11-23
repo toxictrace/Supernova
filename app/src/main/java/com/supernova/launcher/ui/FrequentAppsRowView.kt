@@ -93,8 +93,12 @@ class FrequentAppsRowView @JvmOverloads constructor(
         setPadding(dp(sidePaddingDp), vertical, dp(sidePaddingDp), vertical)
         val iconSize = look?.iconSizePx ?: dp(if (gridAligned) APP_ICON_DP else LABELED_ICON_DP)
         val shown = entries.take(if (gridAligned) columns else MAX_LABELED)
-        val halfGap = dp(itemSpacingDp) / 2
-        shown.forEach { entry ->
+        // Add spacing only between adjacent columns. Symmetric margins
+        // on every cell shrink each weighted cell without moving its centre.
+        // End margins move the centres apart while keeping the icon size fixed.
+        val gapPx = dp(itemSpacingDp)
+        val columnCount = if (gridAligned) columns else shown.size
+        shown.forEachIndexed { index, entry ->
             val cell = LinearLayout(context).apply {
                 orientation = VERTICAL
                 gravity = android.view.Gravity.CENTER_HORIZONTAL
@@ -139,18 +143,17 @@ class FrequentAppsRowView @JvmOverloads constructor(
                 LayoutParams.WRAP_CONTENT,
                 if (gridAligned) 1f else 0f
             ).apply {
-                marginStart = halfGap
-                marginEnd = halfGap
+                if (index < columnCount - 1) marginEnd = gapPx
             }
             addView(cell, cellParams)
         }
         // Empty columns keep the filled ones at the grid's width.
-        if (gridAligned) repeat(columns - shown.size) {
+        if (gridAligned) repeat(columns - shown.size) { emptyIndex ->
+            val index = shown.size + emptyIndex
             addView(
                 View(context),
                 LayoutParams(0, 1, 1f).apply {
-                    marginStart = halfGap
-                    marginEnd = halfGap
+                    if (index < columns - 1) marginEnd = gapPx
                 }
             )
         }
