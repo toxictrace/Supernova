@@ -631,16 +631,7 @@ class SettingsActivity : AppCompatActivity() {
                             render()
                             return@launch
                         }
-                        val added = withContext(Dispatchers.IO) {
-                            com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
-                        }
-                        if (added != null) {
-                            viewModel.set(Pref.rootClockAddedToBlacklist, added)
-                            viewModel.set(Pref.rootHideClock, true)
-                        } else {
-                            showRootSettingsMessage(R.string.root_settings_operation_failed)
-                            render()
-                        }
+                        viewModel.set(Pref.rootHideClock, true)
                     } else {
                         val restored = withContext(Dispatchers.IO) {
                             com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(

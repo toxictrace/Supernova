@@ -70,6 +70,7 @@ import com.supernova.launcher.data.DrawerTarget
 import com.supernova.launcher.data.FolderToDrawer
 import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LauncherPrefs
+import com.supernova.launcher.data.Pref
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
 import com.supernova.launcher.data.LauncherItem
@@ -134,6 +135,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -356,6 +359,8 @@ class LauncherActivity :
     // the time onNewIntent runs - the Lifecycle state is STARTED either way,
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
+    private val rootClockSyncMutex = Mutex()
+    private var rootClockLauncherActive = false
 
     // When the launcher's window last gained focus (uptime ms): a home press
     // only counts as made on the home screen once it has held focus a moment.
@@ -1046,6 +1051,7 @@ class LauncherActivity :
         if (::googleDiscover.isInitialized) googleDiscover.onResume()
         // Cleared after onNewIntent, which runs first on the way back in.
         startedSinceResume = false
+        syncRootClockForLauncher(active = true)
         // The launcher is what the user is looking at again, so a drawer still
         // open is one they came back to, not one parked behind an app.
         drawerKeptBehindLaunch = false
@@ -1053,11 +1059,44 @@ class LauncherActivity :
     }
 
     override fun onPause() {
+        syncRootClockForLauncher(active = false)
         // Home pressed while a circle was still filling, say: that launch is
         // off. One already asked for carries on.
         launchPrelude.cancelPending()
         if (::googleDiscover.isInitialized) googleDiscover.onPause()
         super.onPause()
+    }
+
+    private fun syncRootClockForLauncher(active: Boolean) {
+        rootClockLauncherActive = active
+        lifecycleScope.launch {
+            rootClockSyncMutex.withLock {
+                val prefs = viewModel.state.value.prefs
+                if (rootClockLauncherActive && prefs.rootHideClock) {
+                    val added = withContext(Dispatchers.IO) {
+                        com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
+                    }
+                    if (added == true) {
+                        viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                    } else if (added == null) {
+                        Log.w("Supernova", "Unable to hide status-bar clock on launcher")
+                    }
+                } else {
+                    val restored = withContext(Dispatchers.IO) {
+                        com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
+                            prefs.rootClockAddedToBlacklist
+                        )
+                    }
+                    if (restored) {
+                        if (prefs.rootClockAddedToBlacklist) {
+                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                        }
+                    } else {
+                        Log.w("Supernova", "Unable to restore status-bar clock outside launcher")
+                    }
+                }
+            }
+        }
     }
 
     override fun onPostResume() {
