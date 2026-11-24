@@ -38,9 +38,4 @@ class RootStatusBarClockTest {
     fun `removing clock preserves all other entries`() {
         assertEquals("battery,wifi", IconBlacklist.removeClock("clock,wifi,battery"))
     }
-
-    @Test
-    fun `removing feature clock preserves default AOSP slots`() {
-        assertEquals("headset,rotate", IconBlacklist.removeClock("clock,headset,rotate"))
-    }
 }

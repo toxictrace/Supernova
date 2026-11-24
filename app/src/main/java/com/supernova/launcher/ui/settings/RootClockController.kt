@@ -28,7 +28,7 @@ internal class RootClockController(
                 val target = desired.get() ?: continue
                 val succeeded = runCatching {
                     withContext(Dispatchers.IO) {
-                        RootStatusBarClock.setHidden(appContext, target, preferences)
+                        RootStatusBarClock.setHidden(target, preferences)
                     }
                 }.getOrElse { error ->
                     Log.w("Supernova", "Root clock reconciliation failed", error)

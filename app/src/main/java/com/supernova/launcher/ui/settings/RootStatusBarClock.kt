@@ -1,6 +1,5 @@
 package com.supernova.launcher.ui.settings
 
-import android.content.Context
 import com.supernova.launcher.data.LauncherPreferences
 import com.supernova.launcher.data.Pref
 import kotlinx.coroutines.flow.first
@@ -18,7 +17,6 @@ internal object RootStatusBarClock {
     fun hasRoot(): Boolean = runRoot("id")?.contains("uid=0") == true
 
     suspend fun setHidden(
-        context: Context,
         hidden: Boolean,
         preferences: LauncherPreferences
     ): Boolean {

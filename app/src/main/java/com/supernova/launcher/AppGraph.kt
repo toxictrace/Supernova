@@ -27,7 +27,7 @@ class AppGraph(val application: Application) {
     val iconPacks: IconPackRepository by lazy { IconPackRepository(application) }
     val catalog: AppCatalog by lazy { AppCatalog(application, iconPacks) }
     private val processScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    val rootClock: RootClockController by lazy {
+    internal val rootClock: RootClockController by lazy {
         RootClockController(application, preferences, processScope)
     }
 }
