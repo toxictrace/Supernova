@@ -642,11 +642,11 @@ class SettingsActivity : AppCompatActivity() {
                             render()
                             return@launch
                         }
-                        viewModel.set(Pref.rootHideClock, true)
+                        viewModel.setAndWait(Pref.rootHideClock, true)
                     } else {
                         // LauncherActivity is the sole owner of SystemUI clock writes.
                         // It restores the clock after SettingsActivity returns.
-                        viewModel.set(Pref.rootHideClock, false)
+                        viewModel.setAndWait(Pref.rootHideClock, false)
                     }
                 }
             }

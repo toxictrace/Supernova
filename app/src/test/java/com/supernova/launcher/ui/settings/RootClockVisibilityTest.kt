@@ -33,11 +33,29 @@ class RootClockVisibilityTest {
     }
 
     @Test
-    fun newerCoordinatorRequestInvalidatesOlderWork() {
-        val oldRequest = RootClockCoordinator.request()
-        val latestRequest = RootClockCoordinator.request()
-        assertFalse(RootClockCoordinator.isCurrent(oldRequest))
-        assertTrue(RootClockCoordinator.isCurrent(latestRequest))
+    fun identicalSurfaceSnapshotsDoNotInvalidateCurrentWork() {
+        val owner = Any()
+        val snapshot = Triple(true, true, false)
+        val first = RootClockCoordinator.request(owner, snapshot)
+        val repeated = RootClockCoordinator.request(owner, snapshot)
+        assertEquals(first, repeated)
+        assertTrue(RootClockCoordinator.isCurrent(first))
+    }
+
+    @Test
+    fun changedSurfaceSnapshotInvalidatesPreviousWork() {
+        val owner = Any()
+        val first = RootClockCoordinator.request(owner, Triple(true, true, false))
+        val second = RootClockCoordinator.request(owner, Triple(false, false, false))
+        assertFalse(RootClockCoordinator.isCurrent(first))
+        assertTrue(RootClockCoordinator.isCurrent(second))
+    }
+
+    @Test
+    fun homeScopeMatchesOnlyConfiguredHomePage() {
+        assertTrue(isRootClockHomePage(2, 2))
+        assertFalse(isRootClockHomePage(0, 2))
+        assertFalse(isRootClockHomePage(3, 2))
     }
 
     @Test

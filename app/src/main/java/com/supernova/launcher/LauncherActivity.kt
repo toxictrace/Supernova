@@ -72,7 +72,7 @@ import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.Pref
 import com.supernova.launcher.data.RootClockScope
-import com.supernova.launcher.ui.settings.isRootClockWorkspacePage
+import com.supernova.launcher.ui.settings.isRootClockHomePage
 import com.supernova.launcher.ui.settings.RootClockCoordinator
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
@@ -368,6 +368,7 @@ class LauncherActivity :
     private var rootClockSyncRunning = false
     private var rootClockSyncPending = false
     private var rootClockPendingRevision = 0L
+    private var rootClockRunningRevision = 0L
     private var rootClockActivityStarted = false
     private var rootClockActivityResumed = false
     private var rootClockRequestedState: Boolean? = null
@@ -734,8 +735,7 @@ class LauncherActivity :
         drag = LiveDragController(binding, viewModel, host = this, drops = workspaceDrops)
         setupEditMode()
         observeState()
-        binding.root.viewTreeObserver.addOnGlobalLayoutListener { syncRootClockForSurface() }
-        reconcilePinnedShortcutState()
+                reconcilePinnedShortcutState()
         maybeShowOnboarding()
         widgets.sweepOrphanIds()
         observeBadges()
@@ -1103,7 +1103,7 @@ class LauncherActivity :
         if (!::workspaceAdapter.isInitialized) return false
         val state = viewModel.state.value
         val visiblePage = workspaceAdapter.realPage(binding.workspacePager.currentItem)
-        if (!isRootClockWorkspacePage(visiblePage)) return false
+        if (!isRootClockHomePage(visiblePage, state.model.defaultPage)) return false
         if (::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)) return false
         if (::feed.isInitialized && feed.isVisible) return false
         if (::search.isInitialized && search.isOpen) return false
@@ -1130,9 +1130,7 @@ class LauncherActivity :
         val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
         val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
             prefs.rootHideClock,
-            // Window focus can be stolen by overlays without leaving the launcher.
-            // Lifecycle resume is the stable signal for launcher visibility.
-            resumed,
+            resumed && focused,
             homeSurface,
             prefs.rootClockScope
         )
@@ -1147,9 +1145,9 @@ class LauncherActivity :
             other != null && other !== this && !other.isFinishing && other.rootClockActivityResumed
         }
         if (!rootClockActivityResumed && anotherResumedLauncher) return
-        val revision = RootClockCoordinator.request()
         val prefs = state.prefs
         val snapshot = rootClockTargetSnapshot(state)
+        val revision = RootClockCoordinator.request(this, snapshot)
         val visiblePage = if (::workspaceAdapter.isInitialized) {
             workspaceAdapter.realPage(binding.workspacePager.currentItem)
         } else {
@@ -1167,11 +1165,14 @@ class LauncherActivity :
         // One worker owns all root commands. Surface changes during a command
         // are picked up by the next loop instead of being queued or discarded.
         if (rootClockSyncRunning) {
-            rootClockSyncPending = true
-            rootClockPendingRevision = revision
+            if (revision != rootClockRunningRevision) {
+                rootClockSyncPending = true
+                rootClockPendingRevision = revision
+            }
             return
         }
         rootClockSyncRunning = true
+        rootClockRunningRevision = revision
         if (rootClockAppliedHidden == null) rootClockOwnedByFeature = prefs.rootClockAddedToBlacklist
         lifecycleScope.launch {
             try {
@@ -1213,18 +1214,24 @@ class LauncherActivity :
 
                         var verifiedHidden = actualHidden
                         if (target && !actualHidden) {
+                            // Persist ownership before touching SystemUI. A process death
+                            // after the root write must not strand the clock hidden.
+                            viewModel.setAndWait(Pref.rootClockAddedToBlacklist, true)
+                            rootClockOwnedByFeature = true
                             val added = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
                                 com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
                             }
                             if (added == null) {
+                                rootClockOwnedByFeature = false
+                                viewModel.setAndWait(Pref.rootClockAddedToBlacklist, false)
                                 rootClockRequestedState = null
                                 rootClockAppliedHidden = null
                                 Log.w("Supernova", "Unable to hide status-bar clock on launcher")
                                 break
                             }
-                            if (added) {
-                                rootClockOwnedByFeature = true
-                                viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                            if (!added) {
+                                rootClockOwnedByFeature = false
+                                viewModel.setAndWait(Pref.rootClockAddedToBlacklist, false)
                             }
                             verifiedHidden = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
                                 com.supernova.launcher.ui.settings.RootStatusBarClock.isClockHidden()
@@ -1257,7 +1264,7 @@ class LauncherActivity :
                             }
                             if (owned) {
                                 rootClockOwnedByFeature = false
-                                viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                                viewModel.setAndWait(Pref.rootClockAddedToBlacklist, false)
                             }
                             Log.i(
                                 "Supernova",

@@ -150,6 +150,11 @@ class LauncherViewModel(
     // need more than their own key written keep a function of their own.
     fun <T : Any> set(spec: PrefSpec<T>, value: T) = persist { preferences.set(spec, value) }
 
+    // A caller that must sequence an external operation after persistence can await this write.
+    suspend fun <T : Any> setAndWait(spec: PrefSpec<T>, value: T) {
+        preferences.set(spec, value)
+    }
+
     // Several settings in one write (the first run's looks). With replant,
     // the planted first-run layout is built again for the grid they set.
     fun setAll(writes: List<com.supernova.launcher.data.PrefWrite<*>>, replant: Boolean = false) = persist {

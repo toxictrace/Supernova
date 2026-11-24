@@ -12,17 +12,28 @@ internal fun shouldHideRootClock(
 ): Boolean = enabled && launcherActive &&
     (scope == RootClockScope.LAUNCHER || homeSurfaceActive)
 
+internal fun isRootClockHomePage(currentPage: Int, defaultPage: Int): Boolean =
+    currentPage == defaultPage
+
 /**
- * Process-wide owner of SystemUI clock writes.
- *
- * Newer surface snapshots supersede older requests. The mutex prevents
- * commands from separate LauncherActivity instances from overlapping.
+ * Serializes SystemUI clock writes across every LauncherActivity instance.
+ * Identical snapshots do not invalidate an operation already in progress.
  */
 internal object RootClockCoordinator {
     private val mutex = Mutex()
     private val revision = AtomicLong(0)
+    private val stateLock = Any()
+    private var lastOwner: Any? = null
+    private var lastSnapshot: Any? = null
 
-    fun request(): Long = revision.incrementAndGet()
+    fun request(owner: Any, snapshot: Any): Long = synchronized(stateLock) {
+        if (lastOwner !== owner || lastSnapshot != snapshot) {
+            lastOwner = owner
+            lastSnapshot = snapshot
+            revision.incrementAndGet()
+        }
+        revision.get()
+    }
 
     fun isCurrent(request: Long): Boolean = revision.get() == request
 
@@ -35,5 +46,3 @@ internal object RootClockCoordinator {
         }
     }
 }
-
-internal fun isRootClockWorkspacePage(currentPage: Int): Boolean = currentPage >= 0
