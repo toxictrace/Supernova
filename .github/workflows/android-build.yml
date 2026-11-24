@@ -120,3 +120,5 @@ jobs:
           path: supernova-google-companion-release.apk
           if-no-files-found: error
           retention-days: 14
+
+# Temporary trigger-only diff; no build behavior changes.
