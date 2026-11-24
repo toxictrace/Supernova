@@ -6,6 +6,10 @@ import com.supernova.launcher.data.AppCatalog
 import com.supernova.launcher.data.IconPackRepository
 import com.supernova.launcher.data.LauncherPreferences
 import com.supernova.launcher.data.LauncherRepository
+import com.supernova.launcher.ui.settings.RootClockController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 // The app's one instance of each service, built on first use and held by
 // SupernovaApp for the life of the process. The launcher, Settings and the
@@ -22,6 +26,10 @@ class AppGraph(val application: Application) {
     val repository: LauncherRepository by lazy { LauncherRepository(application) }
     val iconPacks: IconPackRepository by lazy { IconPackRepository(application) }
     val catalog: AppCatalog by lazy { AppCatalog(application, iconPacks) }
+    private val processScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val rootClock: RootClockController by lazy {
+        RootClockController(application, preferences, processScope)
+    }
 }
 
 val Context.appGraph: AppGraph

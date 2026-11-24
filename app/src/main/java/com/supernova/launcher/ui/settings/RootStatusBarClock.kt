@@ -1,45 +1,71 @@
 package com.supernova.launcher.ui.settings
 
+import android.content.Context
+import com.supernova.launcher.data.LauncherPreferences
+import com.supernova.launcher.data.Pref
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /**
  * Changes only SystemUI's status-bar clock slot.
  *
- * A missing secure setting uses AOSP's default excluded slots. Preserve those
- * defaults when writing an explicit list, so hiding the clock changes no
- * other standard status-bar icon.
+ * Ownership is stored before the first write. An inconclusive verification
+ * never clears it, so a later restore can finish the operation safely.
  */
 internal object RootStatusBarClock {
     private const val SETTING = "icon_blacklist"
 
     fun hasRoot(): Boolean = runRoot("id")?.contains("uid=0") == true
 
-    /** Returns null on failure, otherwise whether this feature added "clock". */
-    fun hideClock(): Boolean? {
-        val current = runRoot("settings get secure $SETTING") ?: return null
-        val (updated, added) = IconBlacklist.addClock(current)
-        if (!added) return false
-        if (!write(updated)) return null
-        return isClockHidden()?.takeIf { it }
-    }
+    suspend fun setHidden(
+        context: Context,
+        hidden: Boolean,
+        preferences: LauncherPreferences
+    ): Boolean {
+        val owned = preferences.flow.first().rootClockAddedToBlacklist
+        if (!hidden && !owned) return true
 
-    /** Reads SystemUI's actual user blacklist state, not a launcher-side cache. */
-    fun isClockHidden(): Boolean? {
-        val current = runRoot("settings get secure $SETTING") ?: return null
-        return IconBlacklist.containsClock(current)
-    }
-
-    fun showClock(addedByFeature: Boolean): Boolean {
-        if (!addedByFeature) return true
         val current = runRoot("settings get secure $SETTING") ?: return false
-        if (!IconBlacklist.containsClock(current)) return true
+        val actuallyHidden = IconBlacklist.containsClock(current)
+
+        if (hidden) {
+            // A pre-existing clock entry belongs to the user, not this feature.
+            if (actuallyHidden) return true
+
+            val (updated, added) = IconBlacklist.addClock(current)
+            if (!added) return true
+
+            if (!owned) preferences.set(Pref.rootClockAddedToBlacklist, true)
+            if (!write(updated)) return false
+
+            // Keep ownership on false/null verification. The write may have
+            // reached SystemUI even when the follow-up read did not.
+            return isClockHidden() == true
+        }
+
+        if (!actuallyHidden) {
+            preferences.set(Pref.rootClockAddedToBlacklist, false)
+            return true
+        }
+
         val updated = IconBlacklist.removeClock(current)
         val written = if (updated == null) {
             runRoot("settings delete secure $SETTING") != null
         } else {
             write(updated)
         }
-        return written && isClockHidden() == false
+        if (!written) return false
+
+        val verified = isClockHidden() ?: return false
+        if (verified) return false
+
+        preferences.set(Pref.rootClockAddedToBlacklist, false)
+        return true
+    }
+
+    private fun isClockHidden(): Boolean? {
+        val current = runRoot("settings get secure $SETTING") ?: return null
+        return IconBlacklist.containsClock(current)
     }
 
     private fun write(value: String): Boolean =

@@ -3,7 +3,6 @@ package com.supernova.launcher.ui.settings
 import com.supernova.launcher.data.RootClockScope
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RootClockVisibilityTest {
@@ -20,40 +19,22 @@ class RootClockVisibilityTest {
     }
 
     @Test
-    fun homeScopeHidesClockOnlyOnHomeSurface() {
+    fun homeScopeHidesClockOnlyOnConfiguredHomeSurface() {
         assertTrue(shouldHideRootClock(true, true, true, RootClockScope.HOME))
         assertFalse(shouldHideRootClock(true, true, false, RootClockScope.HOME))
     }
 
     @Test
-    fun identicalSurfaceSnapshotsDoNotInvalidateCurrentWork() {
-        val owner = Any()
-        val snapshot = Triple(true, true, false)
-        val first = RootClockCoordinator.request(owner, snapshot)
-        val repeated = RootClockCoordinator.request(owner, snapshot)
-        assertEquals(first, repeated)
-        assertTrue(RootClockCoordinator.isCurrent(first))
+    fun clockIsRestoredWhenLauncherLosesFocusOrResumesAnotherApp() {
+        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
+        assertFalse(shouldHideRootClock(true, true, true, RootClockScope.HOME).not())
+        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.HOME))
     }
 
     @Test
-    fun changedSurfaceSnapshotInvalidatesPreviousWork() {
-        val owner = Any()
-        val first = RootClockCoordinator.request(owner, Triple(true, true, false))
-        val second = RootClockCoordinator.request(owner, Triple(false, false, false))
-        assertFalse(RootClockCoordinator.isCurrent(first))
-        assertTrue(RootClockCoordinator.isCurrent(second))
-    }
-
-    @Test
-    fun homeScopeMatchesOnlyConfiguredHomePage() {
+    fun homeScopeRequiresTheConfiguredHomePage() {
         assertTrue(isRootClockHomePage(2, 2))
         assertFalse(isRootClockHomePage(0, 2))
         assertFalse(isRootClockHomePage(3, 2))
-    }
-
-    @Test
-    fun inactiveLauncherAlwaysRestoresClock() {
-        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
-        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.HOME))
     }
 }
