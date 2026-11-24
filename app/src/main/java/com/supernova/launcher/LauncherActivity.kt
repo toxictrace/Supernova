@@ -1122,9 +1122,22 @@ class LauncherActivity :
         val prefs = state.prefs
         val launcherActive = rootClockActivityResumed ||
             (prefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+        val visiblePage = if (::workspaceAdapter.isInitialized) {
+            workspaceAdapter.realPage(binding.workspacePager.currentItem)
+        } else {
+            -1
+        }
         val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
         val shouldHide = com.supernova.launcher.ui.settings.shouldHideRootClock(
             prefs.rootHideClock, launcherActive, homeSurface, prefs.rootClockScope
+        )
+        Log.i(
+            "Supernova",
+            "root_clock scope=${prefs.rootClockScope} page=$visiblePage default=${state.model.defaultPage} " +
+                "focused=$rootClockWindowFocused drawer=${::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)} " +
+                "feed=${::feed.isInitialized && feed.isVisible} search=${::search.isInitialized && search.isOpen} " +
+                "home=$homeSurface target=$shouldHide requested=$rootClockRequestedState " +
+                "applied=$rootClockAppliedHidden owned=$rootClockOwnedByFeature"
         )
         if (rootClockRequestedState == shouldHide) return
         rootClockRequestedState = shouldHide
@@ -1151,6 +1164,7 @@ class LauncherActivity :
                             viewModel.set(Pref.rootClockAddedToBlacklist, true)
                         }
                         rootClockAppliedHidden = true
+                        Log.i("Supernova", "root_clock hide added=$added")
                     } else {
                         rootClockRequestedState = null
                         Log.w("Supernova", "Unable to hide status-bar clock on launcher")
@@ -1160,6 +1174,7 @@ class LauncherActivity :
                     val restored = withContext(Dispatchers.IO) {
                         com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(owned)
                     }
+                    Log.i("Supernova", "root_clock restore owned=$owned success=$restored")
                     if (restored) {
                         rootClockOwnedByFeature = false
                         rootClockAppliedHidden = false
@@ -1678,7 +1693,7 @@ class LauncherActivity :
         // is also triggered directly from openDrawer for immediacy.
         drawer.onOpenStateChanged = { open ->
             animateWallpaperZoom(if (open) 1f else 0f)
-            syncRootClockForSurface()
+            binding.root.post { syncRootClockForSurface() }
         }
     }
 
@@ -1832,7 +1847,9 @@ class LauncherActivity :
             canPullFromWorkspace = ::feedPullAllowed,
             itemDragArmed = { drag.isArmed || drag.isActive },
             host = object : FeedController.Host {
-                override fun onSurfaceChanged() = syncRootClockForSurface()
+                override fun onSurfaceChanged() {
+                    binding.root.post { syncRootClockForSurface() }
+                }
 
                 override fun onOpenSearch() {
                     feed.setBehindSearch(true)
