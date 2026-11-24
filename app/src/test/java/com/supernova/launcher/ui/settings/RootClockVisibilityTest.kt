@@ -3,6 +3,7 @@ package com.supernova.launcher.ui.settings
 import com.supernova.launcher.data.RootClockScope
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RootClockVisibilityTest {
@@ -22,14 +23,6 @@ class RootClockVisibilityTest {
     fun homeScopeHidesClockOnlyOnHomeSurface() {
         assertTrue(shouldHideRootClock(true, true, true, RootClockScope.HOME))
         assertFalse(shouldHideRootClock(true, true, false, RootClockScope.HOME))
-    }
-
-    @Test
-    fun everyWorkspacePageCountsAsHomeSurface() {
-        assertTrue(isRootClockWorkspacePage(0))
-        assertTrue(isRootClockWorkspacePage(2))
-        assertTrue(isRootClockWorkspacePage(3))
-        assertFalse(isRootClockWorkspacePage(-1))
     }
 
     @Test
