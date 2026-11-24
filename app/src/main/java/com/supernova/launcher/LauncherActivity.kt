@@ -1099,7 +1099,6 @@ class LauncherActivity :
     }
 
     private fun isHomeSurfaceActive(): Boolean {
-        if (!rootClockWindowFocused) return false
         if (!::workspaceAdapter.isInitialized) return false
         val state = viewModel.state.value
         val visiblePage = workspaceAdapter.realPage(binding.workspacePager.currentItem)
