@@ -1118,8 +1118,7 @@ class LauncherActivity :
         val state = viewModel.state.value
         if (!state.loaded) return
         val prefs = state.prefs
-        val launcherActive = rootClockActivityResumed ||
-            (prefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+        val launcherActive = rootClockActivityResumed && rootClockWindowFocused
         val visiblePage = if (::workspaceAdapter.isInitialized) {
             workspaceAdapter.realPage(binding.workspacePager.currentItem)
         } else {
@@ -1151,8 +1150,7 @@ class LauncherActivity :
                     val current = viewModel.state.value
                     if (!current.loaded) break
                     val currentPrefs = current.prefs
-                    val launcherIsActive = rootClockActivityResumed ||
-                        (currentPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+                    val launcherIsActive = rootClockActivityResumed && rootClockWindowFocused
                     val home = if (currentPrefs.rootClockScope == RootClockScope.HOME) {
                         isHomeSurfaceActive()
                     } else {
@@ -1233,8 +1231,7 @@ class LauncherActivity :
                     val latest = viewModel.state.value
                     if (!latest.loaded) break
                     val latestPrefs = latest.prefs
-                    val latestActive = rootClockActivityResumed ||
-                        (latestPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+                    val latestActive = rootClockActivityResumed && rootClockWindowFocused
                     val latestHome = if (latestPrefs.rootClockScope == RootClockScope.HOME) {
                         isHomeSurfaceActive()
                     } else {
