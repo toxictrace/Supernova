@@ -737,7 +737,7 @@ object SettingsCatalogue {
                 ).waitsOn(R.string.dock_enabled, dockOff),
                 rows.color(R.string.dock_label_color, { it.dockLabelColor }) {
                     viewModel.set(Pref.dockLabelColor, it)
-                }.hiddenWhen(dockHidden),
+                }.hiddenWhen { needsOn(R.string.dock_labels, !it.dockLabels) },
                 *labelOverrideItems(context, viewModel, actions, LabelContext.DOCK) {
                     needsOn(R.string.dock_labels, !it.dockLabels)
                 }.map { it.waitsOn(R.string.dock_enabled, dockOff) }.toTypedArray(),
@@ -878,7 +878,7 @@ object SettingsCatalogue {
                             )
                         )
                     },
-                    look = SettingItem.RowLook(chevron = false)
+                    look = SettingItem.RowLook(end = 0)
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 // Horizontal Scroll group: paged style only.
                 SettingItem.Toggle(
