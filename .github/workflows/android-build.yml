@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/drawer-icons-russian-translation
+  pull_request:
+    branches:
+      - ci/dispatch-base-20261124
   workflow_dispatch:
 
 permissions:
@@ -21,9 +24,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
 
       - name: Prepare release signing
         env:
@@ -43,7 +43,7 @@ jobs:
           chmod 600 local/release.jks
           python3 - <<'PY'
           import os
-          
+
           def escape(value):
               result = []
               for index, char in enumerate(value):
@@ -71,7 +71,7 @@ jobs:
                   else:
                       result.append(char)
               return "".join(result)
-          
+
           values = {
               "storeFile": "local/release.jks",
               "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
@@ -81,7 +81,7 @@ jobs:
           with open("local/keystore.properties", "w", encoding="ascii") as output:
               for key, value in values.items():
                   output.write(key + "=" + escape(value) + "\n")
-          
+
           PY
 
       - name: Run unit tests and build signed release APK
