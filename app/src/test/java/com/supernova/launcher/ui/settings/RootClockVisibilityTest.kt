@@ -25,6 +25,13 @@ class RootClockVisibilityTest {
     }
 
     @Test
+    fun homePageIsTheConfiguredDefaultWorkspacePage() {
+        assertTrue(isRootClockHomePage(2, 2))
+        assertFalse(isRootClockHomePage(0, 2))
+        assertFalse(isRootClockHomePage(3, 2))
+    }
+
+    @Test
     fun inactiveLauncherAlwaysRestoresClock() {
         assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
         assertFalse(shouldHideRootClock(true, false, true, RootClockScope.HOME))

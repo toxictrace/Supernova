@@ -9,3 +9,6 @@ internal fun shouldHideRootClock(
     scope: RootClockScope
 ): Boolean = enabled && launcherActive &&
     (scope == RootClockScope.LAUNCHER || homeSurfaceActive)
+
+internal fun isRootClockHomePage(currentPage: Int, defaultPage: Int): Boolean =
+    currentPage == defaultPage

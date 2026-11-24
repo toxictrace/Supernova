@@ -1099,6 +1099,10 @@ class LauncherActivity :
 
     private fun isHomeSurfaceActive(): Boolean {
         if (!rootClockWindowFocused) return false
+        if (!::workspaceAdapter.isInitialized) return false
+        val state = viewModel.state.value
+        val visiblePage = workspaceAdapter.realPage(binding.workspacePager.currentItem)
+        if (!isRootClockHomePage(visiblePage, state.model.defaultPage)) return false
         if (::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)) return false
         if (::feed.isInitialized && feed.isVisible) return false
         if (::search.isInitialized && search.isOpen) return false
