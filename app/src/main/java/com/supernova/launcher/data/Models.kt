@@ -153,10 +153,12 @@ data class LauncherModel(
     val feedOrder: List<String> = emptyList()
 )
 
-@Serializable
+@Serializable(with = RootClockScope.Names::class)
 enum class RootClockScope {
     LAUNCHER,
-    HOME
+    HOME;
+
+    object Names : SettingEnumSerializer<RootClockScope>("RootClockScope", entries, LAUNCHER)
 }
 
 @Serializable
