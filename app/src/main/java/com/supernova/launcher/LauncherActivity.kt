@@ -1153,6 +1153,9 @@ class LauncherActivity :
                 val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
                     currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
                 )
+                // The surface can change while this coroutine waits for the mutex.
+                // Keep the request cache aligned with the state rechecked under the lock.
+                rootClockRequestedState = target
                 if (rootClockAppliedHidden == target) return@withLock
                 if (target) {
                     val added = withContext(Dispatchers.IO) {
