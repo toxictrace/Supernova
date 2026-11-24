@@ -64,6 +64,19 @@ internal class AppEditDraft(
 
     fun typedLabel(): String = binding.editLabel.text?.toString().orEmpty().trim()
 
+    // Reset the draft only. Save remains the single commit point for every field.
+    fun reset(icon: AppOverride) {
+        shape = icon.iconShape
+        pack = icon.iconPackPackage
+        this.icon = icon.iconDrawableName
+        photo = icon.iconBase64
+        variant = icon.iconVariant
+        binding.editLabel.setText(defaultLabel)
+        binding.hideLabelSwitch.isChecked = false
+        binding.variantGroup.check(VARIANT_IDS[variant] ?: R.id.variantDefault)
+        refresh()
+    }
+
     // Wires the live parts; call once the name field and switch hold the
     // saved values.
     fun bind() {
@@ -162,7 +175,7 @@ internal class AppEditDraft(
     }
 
     private fun bindVariants() {
-        val ids = mapOf(null to R.id.variantDefault, THEMED to R.id.variantThemed, ORIGINAL to R.id.variantOriginal)
+        val ids = VARIANT_IDS
         binding.variantGroup.check(ids[variant] ?: R.id.variantDefault)
         binding.variantGroup.addOnButtonCheckedListener { _, id, checked ->
             if (!checked) return@addOnButtonCheckedListener
@@ -207,6 +220,11 @@ internal class AppEditDraft(
     private companion object {
         const val THEMED = "THEMED"
         const val ORIGINAL = "ORIGINAL"
+        val VARIANT_IDS = mapOf(
+            null to R.id.variantDefault,
+            THEMED to R.id.variantThemed,
+            ORIGINAL to R.id.variantOriginal
+        )
         val VARIANT_NAMES = mapOf(THEMED to R.string.variant_themed, ORIGINAL to R.string.variant_original)
         const val SWATCH_DP = 52
         const val SWATCH_GAP_DP = 4

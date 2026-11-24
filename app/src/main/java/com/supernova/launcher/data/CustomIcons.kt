@@ -49,15 +49,22 @@ object CustomIcons {
                 .filterValues { !it.isEmpty() }
         },
         items = model.items.map { item ->
-            when {
-                item.itemType == ItemType.FOLDER && item.hasOwnIcon() && Kind.FOLDERS in kinds -> item.withoutOwnIcon()
-                item.isAction() && item.hasOwnIcon() && Kind.SHORTCUTS in kinds -> item.withoutOwnIcon()
-                item.shortcutEdit?.hasIcon() == true && Kind.SHORTCUTS in kinds ->
-                    item.copy(shortcutEdit = item.shortcutEdit.withoutIcon().takeUnless { it.isEmpty() })
-                item.appEdit?.hasIcon() == true && Kind.PLACED_APPS in kinds ->
-                    item.copy(appEdit = item.appEdit.withoutIcon().takeUnless { it.isEmpty() })
-                else -> item
+            var updated = item
+            if (Kind.FOLDERS in kinds && updated.itemType == ItemType.FOLDER && updated.hasOwnIcon()) {
+                updated = updated.withoutOwnIcon()
             }
+            if (Kind.SHORTCUTS in kinds && updated.isAction() && updated.hasOwnIcon()) {
+                updated = updated.withoutOwnIcon()
+            }
+            val shortcutEdit = updated.shortcutEdit
+            if (Kind.SHORTCUTS in kinds && shortcutEdit?.hasIcon() == true) {
+                updated = updated.copy(shortcutEdit = shortcutEdit.withoutIcon().takeUnless { it.isEmpty() })
+            }
+            val appEdit = updated.appEdit
+            if (Kind.PLACED_APPS in kinds && appEdit?.hasIcon() == true) {
+                updated = updated.copy(appEdit = appEdit.withoutIcon().takeUnless { it.isEmpty() })
+            }
+            updated
         }
     )
 

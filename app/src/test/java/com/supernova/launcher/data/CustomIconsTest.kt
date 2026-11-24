@@ -130,6 +130,25 @@ class CustomIconsTest {
     }
 
     @Test
+    fun shortcutsResetClearsBothActionIconAndItsEditOverride() {
+        val combined = LauncherItem(
+            id = "actionWithEdit", itemType = ItemType.SHORTCUT, label = "Drawer",
+            intentUri = "supernova://action/OPEN_DRAWER",
+            customIconPack = "com.pack", customIconName = "drawer",
+            shortcutEdit = AppOverride(hideLabel = true, iconBase64 = "PICKED", iconVariant = "THEMED")
+        )
+        val modelWithCombinedIcon = model.copy(items = model.items + combined)
+
+        val reset = CustomIcons.reset(modelWithCombinedIcon, setOf(CustomIcons.Kind.SHORTCUTS))
+        val item = reset.items.first { it.id == "actionWithEdit" }
+
+        assertNull(item.customIconPack)
+        assertNull(item.customIconName)
+        assertEquals(AppOverride(hideLabel = true), item.shortcutEdit)
+        assertEquals(0, CustomIcons.count(reset).shortcuts)
+    }
+
+    @Test
     fun resetWithNothingTickedChangesNothing() {
         assertEquals(model, CustomIcons.reset(model, emptySet()))
     }

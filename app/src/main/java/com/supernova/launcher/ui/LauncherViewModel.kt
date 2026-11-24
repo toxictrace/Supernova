@@ -1155,7 +1155,9 @@ class LauncherViewModel(
         }
     }
 
-    fun setFolderIcon(folderId: String, pack: String?, drawableName: String?, base64: String? = null) = persist { repository.setFolderIcon(folderId, pack, drawableName, base64) }
+    fun setFolderIcon(
+        folderId: String, pack: String?, drawableName: String?, base64: String? = null, raw: Boolean? = null
+    ) = persist { repository.setFolderIcon(folderId, pack, drawableName, base64, raw) }
 
     fun setFolderIconRaw(folderId: String, raw: Boolean) = persist { repository.setFolderIconRaw(folderId, raw) }
 

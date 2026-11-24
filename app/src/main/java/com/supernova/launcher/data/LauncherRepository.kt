@@ -743,11 +743,20 @@ class LauncherRepository(private val context: Context) {
         }
     }
 
-    suspend fun setFolderIcon(folderId: String, pack: String?, drawableName: String?, base64: String? = null) {
+    suspend fun setFolderIcon(
+        folderId: String,
+        pack: String?,
+        drawableName: String?,
+        base64: String? = null,
+        raw: Boolean? = null
+    ) {
         mutate { current ->
             current.copy(items = current.items.map { item ->
                 if (item.id == folderId) {
-                    item.copy(customIconPack = pack, customIconName = drawableName, iconBase64 = base64)
+                    item.copy(
+                        customIconPack = pack, customIconName = drawableName, iconBase64 = base64,
+                        iconRaw = raw ?: item.iconRaw
+                    )
                 } else {
                     item
                 }

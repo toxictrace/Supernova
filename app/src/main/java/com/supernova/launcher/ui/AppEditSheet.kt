@@ -113,10 +113,7 @@ object AppEditSheet {
         }
 
         if (shortcut != null) {
-            binding.resetButton.setOnClickListener {
-                shortcut.onSave(shortcut.originalLabel ?: shortcut.label, AppOverride())
-                dialog.dismiss()
-            }
+            binding.resetButton.setOnClickListener { draft.reset(AppOverride()) }
             binding.saveButton.setOnClickListener {
                 // A shortcut's name is saved on the item, not in the edit.
                 shortcut.onSave(draft.typedLabel().ifEmpty { defaultLabel }, draft.edit().copy(customLabel = null))
@@ -133,12 +130,11 @@ object AppEditSheet {
         // Reset undoes the icon and name edits, not the groups: those are
         // where the app lives, as Select apps sets them.
         binding.resetButton.setOnClickListener {
-            save(viewModel, app, placed, null)
-            dialog.dismiss()
+            draft.reset(if (placed != null) viewModel.overrideFor(app) else AppOverride())
         }
 
         binding.saveButton.setOnClickListener {
-            save(viewModel, app, placed, draft.edit())
+            save(viewModel, app, placed, draft.edit().takeUnless { it.isEmpty() })
             groups?.save()
             dialog.dismiss()
         }
@@ -418,6 +414,7 @@ object IconPickerSheet {
             onPick(grid.packPackage, name)
             dialog.dismiss()
         }
+        dialog.setOnDismissListener { adapter.close() }
         adapter.show(cells(grid, grid.names.indices.toList(), query = ""))
         binding.iconGrid.layoutManager = androidx.recyclerview.widget.GridLayoutManager(context, GRID_COLUMNS).apply {
             spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
@@ -450,6 +447,15 @@ object IconPickerSheet {
 
         // The cells on show: titles and icons, or a search's matches.
         private var shown: List<Cell> = emptyList()
+        private val decoder = java.util.concurrent.Executors.newFixedThreadPool(DECODERS) { task ->
+            Thread(task, "icon-picker").apply { isDaemon = true }
+        }
+        private val decoded = android.util.LruCache<String, android.graphics.drawable.Drawable>(DECODED_KEPT)
+        private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+        fun close() {
+            decoder.shutdownNow()
+        }
 
         @android.annotation.SuppressLint("NotifyDataSetChanged")
         fun show(cells: List<Cell>) {
@@ -476,18 +482,35 @@ object IconPickerSheet {
         }
 
         private fun bindIcon(view: android.widget.ImageView, cell: Cell.Icon) {
-            // Lazy per-bind decode: the RecyclerView only materializes what
-            // scrolls into view, so a 3,000-icon pack stays tractable.
-            view.setImageDrawable(viewModel.appCatalog().packDrawable(grid.packPackage, cell.name))
+            view.tag = cell.name
+            val ready = decoded.get(cell.name)
+            view.setImageDrawable(ready?.constantState?.newDrawable() ?: ready)
+            if (ready == null) decode(view, cell.name)
             val label = grid.labels?.getOrNull(cell.index)
             view.contentDescription = label ?: view.context.getString(R.string.app_icon)
             view.tooltipText = label
             view.setOnClickListener { onPick(cell.name) }
         }
 
+        private fun decode(view: android.widget.ImageView, name: String) {
+            val catalog = viewModel.appCatalog()
+            runCatching {
+                decoder.execute {
+                    if (view.tag != name) return@execute
+                    val icon = catalog.packDrawable(grid.packPackage, name) ?: return@execute
+                    main.post {
+                        decoded.put(name, icon)
+                        if (view.tag == name) view.setImageDrawable(icon.constantState?.newDrawable() ?: icon)
+                    }
+                }
+            }
+        }
+
         private companion object {
             const val TYPE_ICON = 0
             const val TYPE_GAP = 1
+            const val DECODERS = 2
+            const val DECODED_KEPT = 200
         }
     }
 }

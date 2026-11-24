@@ -95,14 +95,11 @@ object FolderEditSheet {
             if (typed.isNotEmpty() && typed != originalName) {
                 if (isFolder) viewModel.renameFolder(folder.id, typed) else viewModel.renameShortcut(folder.id, typed)
             }
-            if (icon.pack != originalPack || icon.name != originalIcon || icon.photo != originalPhoto) {
-                if (icon.photo != null) {
-                    viewModel.setFolderIcon(folder.id, null, null, icon.photo)
-                } else {
-                    viewModel.setFolderIcon(folder.id, icon.pack, icon.name)
-                }
+            if (icon.pack != originalPack || icon.name != originalIcon || icon.photo != originalPhoto ||
+                icon.savedRaw != originalRaw
+            ) {
+                viewModel.setFolderIcon(folder.id, icon.pack, icon.name, icon.photo, icon.savedRaw)
             }
-            if (icon.savedRaw != originalRaw) viewModel.setFolderIconRaw(folder.id, icon.savedRaw)
             dialog.dismiss()
         }
 
