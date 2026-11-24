@@ -500,7 +500,6 @@ object SettingsCatalogue {
                     R.string.root_hide_clock,
                     get = { it.rootHideClock },
                     set = actions.onRootClockChanged,
-                    subtitle = R.string.root_hide_clock_summary
                 ),
                 rows.choice(
                     R.string.status_bar_icons, StatusBarIcons.entries,
@@ -833,13 +832,11 @@ object SettingsCatalogue {
                     R.string.drawer_frequent_row,
                     get = { it.drawerFrequentRow },
                     set = { viewModel.set(Pref.drawerFrequentRow, it) },
-                    subtitle = R.string.drawer_frequent_row_summary
                 ),
                 SettingItem.Toggle(
                     R.string.drawer_frequent_row_all_tabs,
                     get = { it.drawerFrequentRowAllTabs },
                     set = { viewModel.set(Pref.drawerFrequentRowAllTabs, it) },
-                    subtitle = R.string.drawer_frequent_row_all_tabs_summary
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 SettingItem.Slider(
                     R.string.drawer_frequent_row_padding_h,
@@ -847,11 +844,9 @@ object SettingsCatalogue {
                     get = { it.drawerFrequentRowPaddingH },
                     set = { viewModel.set(Pref.drawerFrequentRowPaddingH, it) },
                     display = { context.getString(R.string.padding_dp_value, it) },
-                    note = { context.getString(R.string.drawer_frequent_row_padding_hint) }
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 SettingItem.Row(
                     R.string.drawer_frequent_row_match_drawer,
-                    subtitle = { context.getString(R.string.drawer_frequent_row_match_drawer_summary) },
                     onClick = {
                         val drawerPadding = viewModel.state.value.prefs.drawerPaddingH
                         viewModel.setAll(
