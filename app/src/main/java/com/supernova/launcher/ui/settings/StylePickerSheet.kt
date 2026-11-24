@@ -289,10 +289,11 @@ object StylePickerSheet {
             val target = Slot.entries.first { slotButtonId(it) == checkedId }
             if (target != slot) selectSlot(target)
         }
-        // On the Surface slot, Default puts the opacity back as well: it reset
-        // everything but that (#298).
+        // Default puts back what the slot's page shows besides the colour:
+        // the opacity on Surface (#298), the minimum contrast on Text (#349).
         binding.styleDefault.setOnClickListener {
             val surfaceSlot = slot == Slot.SURFACE
+            if (slot == Slot.TEXT) style = style.copy(minContrast = null)
             if (surfaceSlot) {
                 style = style.copy(alpha = null)
                 if (SurfaceOpacity.handles(surfaceId)) {
@@ -302,6 +303,7 @@ object StylePickerSheet {
                 }
             }
             onPick(ColorSpec())
+            renderContrast()
             if (surfaceSlot && binding.opacityRow.isVisible) {
                 val shown = if (SurfaceOpacity.handles(surfaceId)) {
                     binding.opacitySeek.progress

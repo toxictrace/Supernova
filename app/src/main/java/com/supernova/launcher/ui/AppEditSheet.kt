@@ -78,13 +78,13 @@ object AppEditSheet {
         // The whole row toggles it, as the sheet's other switch rows do.
         binding.hideLabelRow.setOnClickListener { binding.hideLabelSwitch.toggle() }
 
-        // The name with no edit: shown in the empty field, and saved when the
-        // field is left empty.
+        // The name with no edit: shown when the field is cleared, and saved
+        // when it's left empty or matches.
         val defaultLabel = shortcut?.let { it.originalLabel ?: it.label } ?: rawLabel
         binding.editLabelLayout.placeholderText = defaultLabel
-        // Only a name of the user's own is in the field; the real one is
-        // the placeholder.
-        binding.editLabel.setText((shortcut?.label ?: current.customLabel)?.takeIf { it != defaultLabel }.orEmpty())
+        // The field opens on the name shown now, the user's own or the
+        // app's, as a folder's does, so a small change is a small edit.
+        binding.editLabel.setText(shortcut?.label ?: current.customLabel ?: defaultLabel)
         val draft = AppEditDraft(binding, scope, viewModel, defaultLabel, saved = current)
         draft.preview = shortcut?.preview ?: app?.let { a -> { edit -> viewModel.appCatalog().previewIcon(a, edit) } }
         draft.bind()
@@ -116,7 +116,7 @@ object AppEditSheet {
             binding.resetButton.setOnClickListener { draft.reset(AppOverride()) }
             binding.saveButton.setOnClickListener {
                 // A shortcut's name is saved on the item, not in the edit.
-                shortcut.onSave(draft.typedLabel().ifEmpty { defaultLabel }, draft.edit().copy(customLabel = null))
+                shortcut.onSave(draft.typedLabel.ifEmpty { defaultLabel }, draft.edit().copy(customLabel = null))
                 dialog.dismiss()
             }
             dialog.show()
@@ -127,8 +127,10 @@ object AppEditSheet {
 
         val groups = DrawerGroupsPick.forSheet(context, viewModel, app, fromDrawer, binding)
 
-        // Reset undoes the icon and name edits, not the groups: those are
-        // where the app lives, as Select apps sets them.
+        // Reset clears the icon and name edits in the sheet, not the groups:
+        // those are where the app lives, as Select apps sets them. Like
+        // every other change it lands with Save, so a stray tap costs nothing.
+        // A placed copy with no edit of its own draws the drawer's icon.
         binding.resetButton.setOnClickListener {
             draft.reset(if (placed != null) viewModel.overrideFor(app) else AppOverride())
         }
@@ -447,6 +449,10 @@ object IconPickerSheet {
 
         // The cells on show: titles and icons, or a search's matches.
         private var shown: List<Cell> = emptyList()
+
+        // Icons are decoded off the main thread, a few at a time, and put in
+        // as they come: a pack of large art took the sheet's first frame
+        // hostage to every icon on it, and scrolling stuttered (#288).
         private val decoder = java.util.concurrent.Executors.newFixedThreadPool(DECODERS) { task ->
             Thread(task, "icon-picker").apply { isDaemon = true }
         }
@@ -482,7 +488,11 @@ object IconPickerSheet {
         }
 
         private fun bindIcon(view: android.widget.ImageView, cell: Cell.Icon) {
+            // Lazy per-bind decode: the RecyclerView only materializes what
+            // scrolls into view, so a 3,000-icon pack stays tractable.
             view.tag = cell.name
+            // A copy: the same icon can show twice, in the app's matches
+            // and in the list.
             val ready = decoded.get(cell.name)
             view.setImageDrawable(ready?.constantState?.newDrawable() ?: ready)
             if (ready == null) decode(view, cell.name)
@@ -496,6 +506,7 @@ object IconPickerSheet {
             val catalog = viewModel.appCatalog()
             runCatching {
                 decoder.execute {
+                    // A cell scrolled past before its turn came needs nothing.
                     if (view.tag != name) return@execute
                     val icon = catalog.packDrawable(grid.packPackage, name) ?: return@execute
                     main.post {
@@ -509,7 +520,11 @@ object IconPickerSheet {
         private companion object {
             const val TYPE_ICON = 0
             const val TYPE_GAP = 1
+
+            // Threads decoding the picker's icons.
             const val DECODERS = 2
+
+            // Decoded icons kept, a few screens' worth, for scrolling back.
             const val DECODED_KEPT = 200
         }
     }
