@@ -633,7 +633,6 @@ class SettingsActivity : AppCompatActivity() {
             openSection = { title -> navigateTo(title, 0) },
             onRootClockChanged = { hidden ->
                 lifecycleScope.launch {
-                    val prefs = viewModel.state.value.prefs
                     if (hidden) {
                         val granted = withContext(Dispatchers.IO) {
                             com.supernova.launcher.ui.settings.RootStatusBarClock.hasRoot()
@@ -645,18 +644,9 @@ class SettingsActivity : AppCompatActivity() {
                         }
                         viewModel.set(Pref.rootHideClock, true)
                     } else {
-                        val restored = withContext(Dispatchers.IO) {
-                            com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
-                                prefs.rootClockAddedToBlacklist
-                            )
-                        }
-                        if (restored) {
-                            viewModel.set(Pref.rootHideClock, false)
-                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
-                        } else {
-                            showRootSettingsMessage(R.string.root_settings_operation_failed)
-                            render()
-                        }
+                        // LauncherActivity is the sole owner of SystemUI clock writes.
+                        // It restores the clock after SettingsActivity returns.
+                        viewModel.set(Pref.rootHideClock, false)
                     }
                 }
             }
