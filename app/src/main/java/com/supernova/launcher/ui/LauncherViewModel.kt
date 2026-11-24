@@ -845,6 +845,13 @@ class LauncherViewModel(
 
     fun removeItem(itemId: String) = persist { repository.removeItem(itemId) }
 
+    fun removeItemWithCompletion(itemId: String, onRemoved: () -> Unit) {
+        viewModelScope.launch {
+            runLogged("remove item from workspace") { repository.removeItem(itemId) }
+                .onSuccess { onRemoved() }
+        }
+    }
+
     fun renameFolder(folderId: String, name: String) = persist { repository.renameFolder(folderId, name) }
 
     fun sortFolder(folderId: String) = persist { repository.sortFolder(folderId) }
@@ -880,6 +887,11 @@ class LauncherViewModel(
     // cards, and the search bar's Replace widget, which lives in a pref. The
     // orphan sweep deletes whatever this leaves out, so it must be complete,
     // and it is null while the layout can't be read: then nobody knows.
+    suspend fun persistedModel(): com.supernova.launcher.data.LauncherModel? {
+        if (!repository.modelReadable()) return null
+        return repository.modelFlow.first()
+    }
+
     suspend fun persistedWidgetIds(): Set<Int>? {
         if (!repository.modelReadable()) return null
         val model = repository.modelFlow.first()

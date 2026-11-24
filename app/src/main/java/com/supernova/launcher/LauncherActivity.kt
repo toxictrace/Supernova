@@ -74,6 +74,7 @@ import com.supernova.launcher.data.Pref
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
 import com.supernova.launcher.data.LauncherItem
+import com.supernova.launcher.data.ShortcutPinCleanup
 import com.supernova.launcher.data.isLargeIcon
 import com.supernova.launcher.data.LauncherRepository
 import com.supernova.launcher.data.WorkspaceGeometry
@@ -3817,6 +3818,28 @@ class LauncherActivity :
         return (info?.shortLabel ?: info?.longLabel)?.toString()?.takeIf { it.isNotBlank() }
     }
 
+    // A shortcut stays pinned while Undo is available. Once removal is final,
+    // unpin only IDs no longer represented anywhere in this launcher's layout.
+    private fun releaseRemovedShortcutPins(removedItems: List<LauncherItem>) {
+        lifecycleScope.launch {
+            val remainingItems = viewModel.persistedModel()?.items ?: return@launch
+            val candidates = ShortcutPinCleanup.idsNoLongerUsed(removedItems, remainingItems)
+            val launcherApps = getSystemService(LauncherApps::class.java) ?: return@launch
+            candidates.forEach { (owner, ids) ->
+                val user = viewModel.appCatalog().userForSerial(owner.userSerial)
+                    ?: if (owner.userSerial == 0L) Process.myUserHandle() else return@forEach
+                runLogged("unpin removed app shortcuts") {
+                    val query = LauncherApps.ShortcutQuery()
+                        .setPackage(owner.packageName)
+                        .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+                    val pinned = launcherApps.getShortcuts(query, user).orEmpty().map { it.id }
+                    val updated = pinned.filterNot(ids::contains)
+                    if (updated != pinned) launcherApps.pinShortcuts(owner.packageName, updated, user)
+                }
+            }
+        }
+    }
+
     // A widget's host id is kept while the Undo bar shows, so Undo brings the
     // same widget back; it is deleted once the bar goes without an Undo.
     override fun removeItemWithUndo(item: LauncherItem) = removeItemWithUndo(item, null, null)
@@ -3838,8 +3861,15 @@ class LauncherActivity :
         } else {
             emptyList()
         }
-        viewModel.removeItem(item.id)
-        if (!viewModel.state.value.prefs.undoRemove) {
+        val removedItems = listOf(item) + members
+        val undoEnabled = viewModel.state.value.prefs.undoRemove
+        var removalPersisted = false
+        var removalFinalized = !undoEnabled
+        viewModel.removeItemWithCompletion(item.id) {
+            removalPersisted = true
+            if (removalFinalized) releaseRemovedShortcutPins(removedItems)
+        }
+        if (!undoEnabled) {
             if (widget) widgets.releaseWidget(item)
             removeEmptyPages(emptied = item.desktopPage())
             return
@@ -3859,7 +3889,11 @@ class LauncherActivity :
             override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
                 // Before the check below: a bar replaced by the next removal's
                 // is final too.
-                if (widget && event != DISMISS_EVENT_ACTION) widgets.releaseWidget(item)
+                if (event != DISMISS_EVENT_ACTION) {
+                    removalFinalized = true
+                    if (removalPersisted) releaseRemovedShortcutPins(removedItems)
+                    if (widget) widgets.releaseWidget(item)
+                }
                 if (undoSnackbar !== transientBottomBar) return
                 undoSnackbar = null
                 if (event != DISMISS_EVENT_ACTION) removeEmptyPages(emptied = item.desktopPage())
@@ -3973,6 +4007,7 @@ class LauncherActivity :
             onRemoved()
             removed.widgets.forEach(widgets::onWidgetItemRemoved)
             if (!viewModel.state.value.prefs.undoRemove) {
+                releaseRemovedShortcutPins(removed.items)
                 removed.widgets.forEach(widgets::releaseWidget)
                 return@removePageWithItems
             }
@@ -3991,7 +4026,10 @@ class LauncherActivity :
             }
             snackbar.addCallback(object : Snackbar.Callback() {
                 override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                    if (event != DISMISS_EVENT_ACTION) removed.widgets.forEach(widgets::releaseWidget)
+                    if (event != DISMISS_EVENT_ACTION) {
+                        releaseRemovedShortcutPins(removed.items)
+                        removed.widgets.forEach(widgets::releaseWidget)
+                    }
                     if (undoSnackbar === transientBottomBar) undoSnackbar = null
                 }
             })
