@@ -847,7 +847,7 @@ class LauncherViewModel(
 
     fun removeItemWithCompletion(itemId: String, onRemoved: () -> Unit) {
         viewModelScope.launch {
-            runLogged("remove item from workspace") { repository.removeItem(itemId) }
+            com.supernova.launcher.runLogged("remove item from workspace") { repository.removeItem(itemId) }
                 .onSuccess { onRemoved() }
         }
     }
