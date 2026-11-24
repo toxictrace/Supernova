@@ -25,9 +25,16 @@ class RootClockVisibilityTest {
     }
 
     @Test
-    fun clockIsRestoredWhenLauncherLosesFocusOrResumesAnotherApp() {
-        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
+    fun windowFocusLossDoesNotChangeClockVisibilityWhileLauncherIsResumed() {
+        assertTrue(shouldHideRootClock(true, true, true, RootClockScope.LAUNCHER))
+        assertTrue(shouldHideRootClock(true, true, false, RootClockScope.LAUNCHER))
         assertTrue(shouldHideRootClock(true, true, true, RootClockScope.HOME))
+        assertFalse(shouldHideRootClock(true, true, false, RootClockScope.HOME))
+    }
+
+    @Test
+    fun clockIsRestoredWhenLauncherIsNoLongerResumed() {
+        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
         assertFalse(shouldHideRootClock(true, false, true, RootClockScope.HOME))
     }
 

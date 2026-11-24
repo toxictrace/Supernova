@@ -21,7 +21,6 @@ internal object RootStatusBarClock {
         preferences: LauncherPreferences
     ): Boolean {
         val owned = preferences.flow.first().rootClockAddedToBlacklist
-        if (!hidden && !owned) return true
 
         val current = runRoot("settings get secure $SETTING") ?: return false
         val actuallyHidden = IconBlacklist.containsClock(current)

@@ -365,7 +365,6 @@ class LauncherActivity :
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
     private var rootClockActivityResumed = false
-    private var rootClockWindowFocused = false
     private var googleDiscoverVisible = false
 
     // When the launcher's window last gained focus (uptime ms): a home press
@@ -1107,23 +1106,21 @@ class LauncherActivity :
 
     private data class RootClockTargetSnapshot(
         val target: Boolean,
-        val focused: Boolean,
         val resumed: Boolean,
         val homeSurface: Boolean
     )
 
     private fun rootClockTargetSnapshot(state: LauncherUiState): RootClockTargetSnapshot {
         val resumed = rootClockActivityResumed
-        val focused = rootClockWindowFocused
         val prefs = state.prefs
         val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
         val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
             prefs.rootHideClock,
-            resumed && focused,
+            resumed,
             homeSurface,
             prefs.rootClockScope
         )
-        return RootClockTargetSnapshot(target, focused, resumed, homeSurface)
+        return RootClockTargetSnapshot(target, resumed, homeSurface)
     }
 
     private fun syncRootClockForSurface() {
@@ -2223,8 +2220,6 @@ class LauncherActivity :
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        rootClockWindowFocused = hasFocus
-        syncRootClockForSurface()
         if (hasFocus) focusGainedAt = SystemClock.uptimeMillis()
         // A launched app can restore the status bar; re-hide on return.
         if (hasFocus && viewModel.state.value.prefs.hideStatusBar) {
