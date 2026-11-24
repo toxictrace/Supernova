@@ -6,6 +6,7 @@ import com.supernova.launcher.data.LauncherPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -18,27 +19,40 @@ internal class RootClockController(
     private val preferences: LauncherPreferences,
     scope: CoroutineScope
 ) {
-    private val appContext = context.applicationContext
     private val desired = java.util.concurrent.atomic.AtomicReference<Boolean?>(null)
     private val requests = Channel<Unit>(Channel.CONFLATED)
 
     init {
+        // Keep retrying a failed root operation while its target remains current.
+        // A newer request replaces the target without starting a second worker.
         scope.launch {
             for (ignored in requests) {
-                val target = desired.get() ?: continue
-                val succeeded = runCatching {
-                    withContext(Dispatchers.IO) {
-                        RootStatusBarClock.setHidden(target, preferences)
+                var retryDelayMs = INITIAL_RETRY_DELAY_MS
+                while (true) {
+                    val target = desired.get() ?: break
+                    val succeeded = runCatching {
+                        withContext(Dispatchers.IO) {
+                            RootStatusBarClock.setHidden(target, preferences)
+                        }
+                    }.getOrElse { error ->
+                        Log.w("Supernova", "Root clock reconciliation failed", error)
+                        false
                     }
-                }.getOrElse { error ->
-                    Log.w("Supernova", "Root clock reconciliation failed", error)
-                    false
+
+                    // Never retry or leave a stale target as the final state.
+                    if (desired.get() != target) {
+                        requests.trySend(Unit)
+                        break
+                    }
+                    if (succeeded) break
+
+                    Log.w(
+                        "Supernova",
+                        "Unable to reconcile status-bar clock hidden=$target; retry in ${retryDelayMs}ms"
+                    )
+                    delay(retryDelayMs)
+                    retryDelayMs = (retryDelayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
                 }
-                if (!succeeded) {
-                    Log.w("Supernova", "Unable to reconcile status-bar clock hidden=$target")
-                }
-                // A newer request may have arrived during the root operation.
-                if (desired.get() != target) requests.trySend(Unit)
             }
         }
     }
@@ -46,5 +60,10 @@ internal class RootClockController(
     fun request(hidden: Boolean) {
         desired.set(hidden)
         requests.trySend(Unit)
+    }
+
+    private companion object {
+        const val INITIAL_RETRY_DELAY_MS = 1_000L
+        const val MAX_RETRY_DELAY_MS = 15_000L
     }
 }
