@@ -75,6 +75,8 @@ import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
 import com.supernova.launcher.data.LauncherItem
 import com.supernova.launcher.data.ShortcutPinCleanup
+import com.supernova.launcher.data.ShortcutPinOwner
+import com.supernova.launcher.data.ShortcutPinRef
 import com.supernova.launcher.data.isLargeIcon
 import com.supernova.launcher.data.LauncherRepository
 import com.supernova.launcher.data.WorkspaceGeometry
@@ -718,6 +720,7 @@ class LauncherActivity :
         drag = LiveDragController(binding, viewModel, host = this, drops = workspaceDrops)
         setupEditMode()
         observeState()
+        reconcilePinnedShortcutState()
         maybeShowOnboarding()
         widgets.sweepOrphanIds()
         observeBadges()
@@ -3822,19 +3825,57 @@ class LauncherActivity :
     // unpin only IDs no longer represented anywhere in this launcher's layout.
     private fun releaseRemovedShortcutPins(removedItems: List<LauncherItem>) {
         lifecycleScope.launch {
-            val remainingItems = viewModel.persistedModel()?.items ?: return@launch
-            val candidates = ShortcutPinCleanup.idsNoLongerUsed(removedItems, remainingItems)
+            val remainingModel = viewModel.persistedModel() ?: return@launch
+            val prefs = viewModel.state.value.prefs
+            val candidates = ShortcutPinCleanup.idsNoLongerUsed(removedItems, remainingModel, prefs)
             val launcherApps = getSystemService(LauncherApps::class.java) ?: return@launch
-            candidates.forEach { (owner, ids) ->
-                val user = viewModel.appCatalog().userForSerial(owner.userSerial)
-                    ?: if (owner.userSerial == 0L) Process.myUserHandle() else return@forEach
-                runLogged("unpin removed app shortcuts") {
+            if (!launcherApps.hasShortcutHostPermission()) return@launch
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                candidates.forEach { (owner, ids) ->
+                    val user = viewModel.appCatalog().userForSerial(owner.userSerial)
+                        ?: if (owner.userSerial == 0L) Process.myUserHandle() else return@forEach
+                    runLogged("unpin removed app shortcuts") {
+                        val query = LauncherApps.ShortcutQuery()
+                            .setPackage(owner.packageName)
+                            .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+                        val pinned = launcherApps.getShortcuts(query, user).orEmpty().map { it.id }
+                        val updated = pinned.filterNot(ids::contains)
+                        if (updated != pinned) launcherApps.pinShortcuts(owner.packageName, updated, user)
+                    }
+                }
+            }
+        }
+    }
+
+    // Reconcile shortcuts left pinned by older builds or interrupted removals.
+    // FLAG_MATCH_PINNED returns only this launcher's pins, not other launchers'.
+    private fun reconcilePinnedShortcutState() {
+        lifecycleScope.launch {
+            val readyState = viewModel.state.first { it.loaded }
+            val model = viewModel.persistedModel() ?: return@launch
+            val launcherApps = getSystemService(LauncherApps::class.java) ?: return@launch
+            if (!launcherApps.hasShortcutHostPermission()) return@launch
+            val userManager = getSystemService(android.os.UserManager::class.java) ?: return@launch
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                launcherApps.profiles.forEach { user ->
+                    val serial = userManager.getSerialNumberForUser(user)
+                    if (serial < 0L) return@forEach
                     val query = LauncherApps.ShortcutQuery()
-                        .setPackage(owner.packageName)
                         .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
-                    val pinned = launcherApps.getShortcuts(query, user).orEmpty().map { it.id }
-                    val updated = pinned.filterNot(ids::contains)
-                    if (updated != pinned) launcherApps.pinShortcuts(owner.packageName, updated, user)
+                    val pinned = runCatching { launcherApps.getShortcuts(query, user) }
+                        .onFailure { Diagnostics.caught("read pinned shortcuts for reconciliation", it) }
+                        .getOrNull() ?: return@forEach
+                    val refs = pinned.map {
+                        ShortcutPinRef(ShortcutPinOwner(it.`package`, serial), it.id)
+                    }
+                    val stale = ShortcutPinCleanup.orphanedPinned(refs, model, readyState.prefs)
+                    stale.forEach { (owner, staleIds) ->
+                        val currentIds = refs.filter { it.owner == owner }.map { it.shortcutId }.distinct()
+                        val retained = currentIds.filterNot(staleIds::contains)
+                        runLogged("remove stale pinned app shortcuts") {
+                            launcherApps.pinShortcuts(owner.packageName, retained, user)
+                        }
+                    }
                 }
             }
         }
