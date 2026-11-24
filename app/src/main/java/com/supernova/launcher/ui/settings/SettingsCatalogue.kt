@@ -2274,3 +2274,4 @@ internal object SearchBarPrefs {
         return prefs.copy(searchBarConfig = full.copy(drawer = change(full.drawer)).encode())
     }
 }
+
