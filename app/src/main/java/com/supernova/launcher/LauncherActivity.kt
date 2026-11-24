@@ -1114,26 +1114,44 @@ class LauncherActivity :
         return true
     }
 
+    private data class RootClockTargetSnapshot(
+        val target: Boolean,
+        val focused: Boolean,
+        val resumed: Boolean,
+        val homeSurface: Boolean
+    )
+
+    private fun rootClockTargetSnapshot(state: LauncherUiState): RootClockTargetSnapshot {
+        val resumed = rootClockActivityResumed
+        val focused = rootClockWindowFocused
+        val prefs = state.prefs
+        val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
+        val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
+            prefs.rootHideClock,
+            resumed && focused,
+            homeSurface,
+            prefs.rootClockScope
+        )
+        return RootClockTargetSnapshot(target, focused, resumed, homeSurface)
+    }
+
     private fun syncRootClockForSurface() {
         val state = viewModel.state.value
         if (!state.loaded) return
         val prefs = state.prefs
-        val launcherActive = rootClockActivityResumed && rootClockWindowFocused
+        val snapshot = rootClockTargetSnapshot(state)
         val visiblePage = if (::workspaceAdapter.isInitialized) {
             workspaceAdapter.realPage(binding.workspacePager.currentItem)
         } else {
             -1
         }
-        val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
-        val shouldHide = com.supernova.launcher.ui.settings.shouldHideRootClock(
-            prefs.rootHideClock, launcherActive, homeSurface, prefs.rootClockScope
-        )
         Log.i(
             "Supernova",
             "root_clock scope=${prefs.rootClockScope} page=$visiblePage default=${state.model.defaultPage} " +
-                "focused=$rootClockWindowFocused drawer=${::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)} " +
+                "focused=${snapshot.focused} resumed=${snapshot.resumed} " +
+                "drawer=${::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)} " +
                 "feed=${::feed.isInitialized && feed.isVisible} search=${::search.isInitialized && search.isOpen} " +
-                "home=$homeSurface target=$shouldHide requested=$rootClockRequestedState " +
+                "home=${snapshot.homeSurface} target=${snapshot.target} requested=$rootClockRequestedState " +
                 "applied=$rootClockAppliedHidden owned=$rootClockOwnedByFeature"
         )
         // One worker owns all root commands. Surface changes during a command
@@ -1150,15 +1168,8 @@ class LauncherActivity :
                     val current = viewModel.state.value
                     if (!current.loaded) break
                     val currentPrefs = current.prefs
-                    val launcherIsActive = rootClockActivityResumed && rootClockWindowFocused
-                    val home = if (currentPrefs.rootClockScope == RootClockScope.HOME) {
-                        isHomeSurfaceActive()
-                    } else {
-                        true
-                    }
-                    val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
-                        currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
-                    )
+                    val currentSnapshot = rootClockTargetSnapshot(current)
+                    val target = currentSnapshot.target
                     rootClockRequestedState = target
 
                     // The cached state can become stale when SystemUI or another
@@ -1171,6 +1182,20 @@ class LauncherActivity :
                         rootClockAppliedHidden = null
                         Log.w("Supernova", "Unable to read status-bar clock setting")
                         break
+                    }
+
+                    // Reading icon_blacklist suspends this coroutine. Focus or surface
+                    // state may change during that read, so never execute its stale target.
+                    val beforeCommand = viewModel.state.value
+                    if (!beforeCommand.loaded) break
+                    val beforeCommandSnapshot = rootClockTargetSnapshot(beforeCommand)
+                    if (beforeCommandSnapshot.target != target) {
+                        Log.i(
+                            "Supernova",
+                            "root_clock stale target=$target current=${beforeCommandSnapshot.target} " +
+                                "focused=${beforeCommandSnapshot.focused} resumed=${beforeCommandSnapshot.resumed}"
+                        )
+                        continue
                     }
 
                     var verifiedHidden = actualHidden
@@ -1230,17 +1255,13 @@ class LauncherActivity :
                     rootClockAppliedHidden = verifiedHidden
                     val latest = viewModel.state.value
                     if (!latest.loaded) break
-                    val latestPrefs = latest.prefs
-                    val latestActive = rootClockActivityResumed && rootClockWindowFocused
-                    val latestHome = if (latestPrefs.rootClockScope == RootClockScope.HOME) {
-                        isHomeSurfaceActive()
-                    } else {
-                        true
-                    }
-                    val latestTarget = com.supernova.launcher.ui.settings.shouldHideRootClock(
-                        latestPrefs.rootHideClock, latestActive, latestHome, latestPrefs.rootClockScope
+                    val latestSnapshot = rootClockTargetSnapshot(latest)
+                    if (latestSnapshot.target == target) break
+                    Log.i(
+                        "Supernova",
+                        "root_clock changed during command target=$target current=${latestSnapshot.target} " +
+                            "focused=${latestSnapshot.focused} resumed=${latestSnapshot.resumed}; reconciling"
                     )
-                    if (latestTarget == target) break
                 }
             } finally {
                 rootClockSyncRunning = false
