@@ -365,6 +365,7 @@ class LauncherActivity :
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
     private var rootClockSyncRunning = false
+    private var rootClockSyncPending = false
     private var rootClockActivityStarted = false
     private var rootClockActivityResumed = false
     private var rootClockRequestedState: Boolean? = null
@@ -1138,7 +1139,10 @@ class LauncherActivity :
         )
         // One worker owns all root commands. Surface changes during a command
         // are picked up by the next loop instead of being queued or discarded.
-        if (rootClockSyncRunning) return
+        if (rootClockSyncRunning) {
+            rootClockSyncPending = true
+            return
+        }
         rootClockSyncRunning = true
         if (rootClockAppliedHidden == null) rootClockOwnedByFeature = prefs.rootClockAddedToBlacklist
         lifecycleScope.launch {
@@ -1243,6 +1247,10 @@ class LauncherActivity :
                 }
             } finally {
                 rootClockSyncRunning = false
+                if (rootClockSyncPending) {
+                    rootClockSyncPending = false
+                    syncRootClockForSurface()
+                }
             }
         }
     }
