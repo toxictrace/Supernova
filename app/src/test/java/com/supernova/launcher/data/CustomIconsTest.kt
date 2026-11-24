@@ -149,6 +149,21 @@ class CustomIconsTest {
     }
 
     @Test
+    fun resetDrawerGroupsClearsIconsAndPreservesGroupSettings() {
+        val folder = DrawerGroup(
+            name = "Games", members = setOf("0/com.game/com.game.Main"), order = 2,
+            type = DrawerGroupType.FOLDER, smart = true, keepInMain = false,
+            iconPack = "com.pack", iconName = "folder_games", iconRaw = true, id = "games"
+        )
+        val tab = DrawerGroup(name = "Work", members = setOf("0/com.work/com.work.Main"), id = "work")
+
+        val reset = CustomIcons.resetDrawerGroups(listOf(folder, tab))
+
+        assertEquals(folder.copy(iconPack = null, iconName = null, iconBase64 = null, iconRaw = false), reset[0])
+        assertEquals(tab, reset[1])
+    }
+
+    @Test
     fun resetWithNothingTickedChangesNothing() {
         assertEquals(model, CustomIcons.reset(model, emptySet()))
     }

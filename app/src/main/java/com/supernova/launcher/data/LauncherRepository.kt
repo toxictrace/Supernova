@@ -765,7 +765,24 @@ class LauncherRepository(private val context: Context) {
     }
 
     suspend fun resetCustomIcons(kinds: Set<CustomIcons.Kind>) {
-        mutate { CustomIcons.reset(it, kinds) }
+        withContext(Dispatchers.Default) {
+            lock.withLock {
+                context.supernovaStore.edit { prefs ->
+                    val current = decode(prefs[StoreKeys.model]) ?: return@edit
+                    val next = AppItemEdits.stampNew(
+                        current, LargeIcons.withSmallIconsOffDesktop(CustomIcons.reset(current, kinds))
+                    )
+                    if (next != current) prefs[StoreKeys.model] = json.encodeToString(next)
+                    if (CustomIcons.Kind.FOLDERS in kinds) {
+                        val stored = prefs[Pref.drawerGroups.key].orEmpty()
+                        val groups = stored.mapNotNull { DrawerGroup.decode(it) }
+                        val undecodable = stored.filter { DrawerGroup.decode(it) == null }
+                        val updated = (undecodable + CustomIcons.resetDrawerGroups(groups).map { it.encode() }).toSet()
+                        if (updated != stored) prefs[Pref.drawerGroups.key] = updated
+                    }
+                }
+            }
+        }
     }
 
     suspend fun resetHiddenLabels() {

@@ -68,6 +68,11 @@ object CustomIcons {
         }
     )
 
+    fun resetDrawerGroups(groups: List<DrawerGroup>): List<DrawerGroup> = groups.map { group ->
+        if (!group.hasCustomIcon) group
+        else group.copy(iconPack = null, iconName = null, iconBase64 = null, iconRaw = false)
+    }
+
     private fun LauncherItem.isAction(): Boolean = ActionShortcut.decode(intentUri) != null
 
     private fun LauncherItem.withoutOwnIcon(): LauncherItem =

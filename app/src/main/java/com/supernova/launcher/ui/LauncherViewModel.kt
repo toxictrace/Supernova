@@ -1037,6 +1037,16 @@ class LauncherViewModel(
 
     fun setIconShape(shape: IconShape) = persist { preferences.set(Pref.iconShape, shape) }
 
+    // The custom shape and its selected mode are one settings transaction.
+    fun setCustomIconShape(encoded: String) = persist {
+        preferences.setAll(
+            listOf(
+                com.supernova.launcher.data.PrefWrite<String>(Pref.iconShapeCustom, encoded),
+                com.supernova.launcher.data.PrefWrite<IconShape>(Pref.iconShape, IconShape.CUSTOM)
+            )
+        )
+    }
+
     fun setScrollEffect(effect: ScrollEffect) = persist { preferences.set(Pref.scrollEffect, effect) }
 
     fun setAppHidden(app: LaunchableApp, hidden: Boolean) = persist { preferences.setAppHidden(hiddenKey(app), hidden) }
@@ -1167,16 +1177,7 @@ class LauncherViewModel(
     }
 
     // Drawer folders and tabs go with the placed folders (FOLDERS).
-    fun resetCustomIcons(kinds: Set<CustomIcons.Kind>) = persist {
-        repository.resetCustomIcons(kinds)
-        if (CustomIcons.Kind.FOLDERS !in kinds) return@persist
-        preferences.updateDrawerGroups { groups ->
-            groups.map {
-                if (!it.hasCustomIcon) return@map it
-                it.copy(iconPack = null, iconName = null, iconBase64 = null, iconRaw = false)
-            }
-        }
-    }
+    fun resetCustomIcons(kinds: Set<CustomIcons.Kind>) = persist { repository.resetCustomIcons(kinds) }
 
     fun hiddenLabels(): HiddenLabels.Count =
         HiddenLabels.count(state.value.model)

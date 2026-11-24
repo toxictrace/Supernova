@@ -1545,8 +1545,7 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle(R.string.custom_shape_title)
             .setView(dialogBinding.root)
             .setPositiveButton(R.string.ok) { _, _ ->
-                viewModel.set(Pref.iconShapeCustom, current().encode())
-                viewModel.setIconShape(IconShape.CUSTOM)
+                viewModel.setCustomIconShape(current().encode())
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
