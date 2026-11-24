@@ -19,19 +19,27 @@ internal object RootStatusBarClock {
         val current = runRoot("settings get secure $SETTING") ?: return null
         val (updated, added) = IconBlacklist.addClock(current)
         if (!added) return false
-        return if (write(updated)) true else null
+        if (!write(updated)) return null
+        return isClockHidden()?.takeIf { it }
+    }
+
+    /** Reads SystemUI's actual user blacklist state, not a launcher-side cache. */
+    fun isClockHidden(): Boolean? {
+        val current = runRoot("settings get secure $SETTING") ?: return null
+        return IconBlacklist.containsClock(current)
     }
 
     fun showClock(addedByFeature: Boolean): Boolean {
         if (!addedByFeature) return true
         val current = runRoot("settings get secure $SETTING") ?: return false
+        if (!IconBlacklist.containsClock(current)) return true
         val updated = IconBlacklist.removeClock(current)
-        if (updated == current) return true
-        return if (updated == null) {
+        val written = if (updated == null) {
             runRoot("settings delete secure $SETTING") != null
         } else {
             write(updated)
         }
+        return written && isClockHidden() == false
     }
 
     private fun write(value: String): Boolean =
@@ -67,6 +75,8 @@ internal object IconBlacklist {
         val slots = parse(raw) - "clock"
         return slots.sorted().joinToString(",").takeIf { it.isNotEmpty() }
     }
+
+    fun containsClock(raw: String?): Boolean = "clock" in parse(raw)
 
     private fun parse(raw: String?): Set<String> =
         if (raw.isNullOrBlank() || raw.trim() == "null") {

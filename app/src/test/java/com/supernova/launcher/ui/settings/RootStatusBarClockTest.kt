@@ -28,6 +28,13 @@ class RootStatusBarClockTest {
     }
 
     @Test
+    fun `clock presence is read from the actual blacklist`() {
+        assertTrue(IconBlacklist.containsClock("clock,wifi"))
+        assertFalse(IconBlacklist.containsClock("wifi,battery"))
+        assertFalse(IconBlacklist.containsClock("null"))
+    }
+
+    @Test
     fun `removing clock preserves all other entries`() {
         assertEquals("battery,wifi", IconBlacklist.removeClock("clock,wifi,battery"))
     }

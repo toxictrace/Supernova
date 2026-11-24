@@ -1158,38 +1158,74 @@ class LauncherActivity :
                         currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
                     )
                     rootClockRequestedState = target
-                    if (rootClockAppliedHidden != target) {
-                        if (target) {
-                            val added = withContext(Dispatchers.IO) {
-                                com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
-                            }
-                            if (added == null) {
-                                rootClockRequestedState = null
-                                Log.w("Supernova", "Unable to hide status-bar clock on launcher")
-                                break
-                            }
-                            if (added) {
-                                rootClockOwnedByFeature = true
-                                viewModel.set(Pref.rootClockAddedToBlacklist, true)
-                            }
-                            rootClockAppliedHidden = true
-                            Log.i("Supernova", "root_clock hide added=$added")
-                        } else {
-                            val owned = rootClockOwnedByFeature || currentPrefs.rootClockAddedToBlacklist
+
+                    // The cached state can become stale when SystemUI or another
+                    // component changes icon_blacklist. Always inspect the real setting.
+                    val actualHidden = withContext(Dispatchers.IO) {
+                        com.supernova.launcher.ui.settings.RootStatusBarClock.isClockHidden()
+                    }
+                    if (actualHidden == null) {
+                        rootClockRequestedState = null
+                        rootClockAppliedHidden = null
+                        Log.w("Supernova", "Unable to read status-bar clock setting")
+                        break
+                    }
+
+                    var verifiedHidden = actualHidden
+                    if (target && !actualHidden) {
+                        val added = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
+                        }
+                        if (added == null) {
+                            rootClockRequestedState = null
+                            rootClockAppliedHidden = null
+                            Log.w("Supernova", "Unable to hide status-bar clock on launcher")
+                            break
+                        }
+                        if (added) {
+                            rootClockOwnedByFeature = true
+                            viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                        }
+                        verifiedHidden = withContext(Dispatchers.IO) {
+                            com.supernova.launcher.ui.settings.RootStatusBarClock.isClockHidden()
+                        } ?: run {
+                            rootClockRequestedState = null
+                            rootClockAppliedHidden = null
+                            Log.w("Supernova", "Unable to verify hidden status-bar clock")
+                            break
+                        }
+                        if (!verifiedHidden) {
+                            rootClockRequestedState = null
+                            rootClockAppliedHidden = null
+                            Log.w("Supernova", "Status-bar clock remained visible after hide")
+                            break
+                        }
+                        Log.i("Supernova", "root_clock hide added=$added verified=$verifiedHidden")
+                    } else if (!target) {
+                        val owned = rootClockOwnedByFeature || currentPrefs.rootClockAddedToBlacklist
+                        if (actualHidden && owned) {
                             val restored = withContext(Dispatchers.IO) {
-                                com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(owned)
+                                com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(true)
                             }
-                            Log.i("Supernova", "root_clock restore owned=$owned success=$restored")
                             if (!restored) {
                                 rootClockRequestedState = null
+                                rootClockAppliedHidden = null
                                 Log.w("Supernova", "Unable to restore status-bar clock outside launcher")
                                 break
                             }
-                            rootClockOwnedByFeature = false
-                            rootClockAppliedHidden = false
-                            if (owned) viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                            verifiedHidden = false
                         }
+                        if (owned) {
+                            rootClockOwnedByFeature = false
+                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
+                        }
+                        Log.i(
+                            "Supernova",
+                            "root_clock restore owned=$owned actualHidden=$actualHidden verifiedHidden=$verifiedHidden"
+                        )
                     }
+
+                    rootClockAppliedHidden = verifiedHidden
                     val latest = viewModel.state.value
                     if (!latest.loaded) break
                     val latestPrefs = latest.prefs
