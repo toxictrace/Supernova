@@ -77,6 +77,8 @@ class FeedController(
         fun addWidgetCard()
 
         fun addShortcutsCard()
+
+        fun onSurfaceChanged() {}
     }
 
     enum class TouchResult { PASS, TAKE_OVER, CONSUMED }
@@ -85,6 +87,9 @@ class FeedController(
 
     var isOpen = false
         private set
+
+    val isVisible: Boolean
+        get() = isOpen || dragging || ui?.root?.visibility == View.VISIBLE
 
     private var ui: ViewFeedPaneBinding? = null
     private var shown = false
@@ -141,6 +146,7 @@ class FeedController(
         isOpen = true
         beginShown()
         pane.visibility = View.VISIBLE
+        host.onSurfaceChanged()
         pane.doOnLayout {
             if (!isOpen) return@doOnLayout
             if (Animations.enabled(viewModel.state.value.prefs)) {
@@ -171,6 +177,7 @@ class FeedController(
         dragging = false
         stopTracking()
         endShown()
+        host.onSurfaceChanged()
         val pane = ui?.root ?: return
         val width = paneWidth().toFloat()
         pane.animate().cancel()
@@ -183,7 +190,10 @@ class FeedController(
                 .setDuration(duration)
                 .setInterpolator(DecelerateInterpolator())
                 .withEndAction {
-                    if (!isOpen && !dragging) pane.visibility = View.GONE
+                    if (!isOpen && !dragging) {
+                        pane.visibility = View.GONE
+                        host.onSurfaceChanged()
+                    }
                 }
                 .start()
             animateHomeFade(0f, duration, null)
@@ -191,6 +201,7 @@ class FeedController(
             pane.translationX = -width
             pane.visibility = View.GONE
             applyHomeFade(0f)
+            host.onSurfaceChanged()
         }
     }
 
@@ -345,6 +356,7 @@ class FeedController(
             pane.visibility = View.VISIBLE
         }
         dragTo(currentX)
+        host.onSurfaceChanged()
     }
 
     private fun dragTo(x: Float) {
@@ -403,7 +415,12 @@ class FeedController(
                     .translationX(-width)
                     .setDuration(duration)
                     .setInterpolator(settle)
-                    .withEndAction { if (!isOpen && !dragging) pane.visibility = View.GONE }
+                    .withEndAction {
+                        if (!isOpen && !dragging) {
+                            pane.visibility = View.GONE
+                            host.onSurfaceChanged()
+                        }
+                    }
                     .start()
                 animateHomeFade(0f, duration, settle)
             } else {
@@ -412,6 +429,7 @@ class FeedController(
                 applyHomeFade(0f)
             }
         }
+        host.onSurfaceChanged()
     }
 
     private fun recycleVelocityTracker() {

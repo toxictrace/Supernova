@@ -28,7 +28,10 @@ import kotlin.math.abs
  * Google App's launcher-overlay protocol is private. The companion uses its own
  * package identity when binding to Google App, then forwards the original Binder.
  */
-class GoogleDiscoverController(private val activity: Activity) {
+class GoogleDiscoverController(
+    private val activity: Activity,
+    private val onOverlayProgressChanged: (Float) -> Unit = {}
+) {
 
     enum class TouchResult { PASS, TAKE_OVER, CONSUMED }
 
@@ -60,7 +63,9 @@ class GoogleDiscoverController(private val activity: Activity) {
     private var downY = 0f
 
     private val callback = object : ILauncherOverlayCallback.Stub() {
-        override fun overlayScrollChanged(progress: Float) = Unit
+        override fun overlayScrollChanged(progress: Float) {
+            activity.runOnUiThread { onOverlayProgressChanged(progress) }
+        }
 
         override fun overlayStatusChanged(status: Int) {
             Log.d(TAG, "Google overlay status=$status")
@@ -208,6 +213,7 @@ class GoogleDiscoverController(private val activity: Activity) {
     fun onPause() {
         resumed = false
         finishScroll()
+        onOverlayProgressChanged(0f)
         updateActivityState()
     }
 

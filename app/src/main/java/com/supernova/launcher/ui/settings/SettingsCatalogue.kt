@@ -10,6 +10,7 @@ import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.LockMethod
 import com.supernova.launcher.data.Pref
 import com.supernova.launcher.data.PrefWrite
+import com.supernova.launcher.data.RootClockScope
 import com.supernova.launcher.data.SearchWindowMode
 import kotlin.math.roundToInt
 import com.supernova.launcher.ui.BadgePosition
@@ -501,6 +502,14 @@ object SettingsCatalogue {
                     get = { it.rootHideClock },
                     set = actions.onRootClockChanged,
                 ),
+                rows.choice(
+                    R.string.root_clock_scope,
+                    RootClockScope.entries,
+                    { it.rootClockScope },
+                    { if (it == RootClockScope.LAUNCHER) R.string.root_clock_scope_launcher else R.string.root_clock_scope_home }
+                ) { viewModel.set(Pref.rootClockScope, it) }.hiddenWhen {
+                    needsOn(R.string.root_hide_clock, !it.rootHideClock)
+                }.nested(),
                 rows.choice(
                     R.string.status_bar_icons, StatusBarIcons.entries,
                     { it.darkStatusIcons }, { EnumLabels.of(it) }

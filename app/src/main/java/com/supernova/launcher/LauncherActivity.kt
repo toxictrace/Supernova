@@ -71,6 +71,7 @@ import com.supernova.launcher.data.FolderToDrawer
 import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.Pref
+import com.supernova.launcher.data.RootClockScope
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
 import com.supernova.launcher.data.LauncherItem
@@ -278,6 +279,7 @@ class LauncherActivity :
                     }
                     activeFolderPopup = card
                     activeFolderAdapter = adapter
+                    syncRootClockForSurface()
                 }
 
                 override fun onClosed(card: android.widget.PopupWindow?) {
@@ -291,6 +293,7 @@ class LauncherActivity :
                     if (activeFolderPopup === card) {
                         activeFolderPopup = null
                         activeFolderAdapter = null
+                        syncRootClockForSurface()
                     }
                     animateWallpaperZoom(0f)
                 }
@@ -363,7 +366,13 @@ class LauncherActivity :
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
     private val rootClockSyncMutex = Mutex()
-    private var rootClockLauncherActive = false
+    private var rootClockActivityStarted = false
+    private var rootClockActivityResumed = false
+    private var rootClockRequestedState: Boolean? = null
+    private var rootClockAppliedHidden: Boolean? = null
+    private var rootClockOwnedByFeature = false
+    private var rootClockWindowFocused = false
+    private var googleDiscoverVisible = false
 
     // When the launcher's window last gained focus (uptime ms): a home press
     // only counts as made on the home screen once it has held focus a moment.
@@ -710,7 +719,10 @@ class LauncherActivity :
         setupDrawer()
         setupSearch()
         setupFeed()
-        googleDiscover = GoogleDiscoverController(this)
+        googleDiscover = GoogleDiscoverController(this) { progress ->
+            googleDiscoverVisible = progress > 0f
+            syncRootClockForSurface()
+        }
         binding.root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) = googleDiscover.onAttachedToWindow()
             override fun onViewDetachedFromWindow(view: View) = googleDiscover.onDetachedFromWindow()
@@ -720,6 +732,7 @@ class LauncherActivity :
         drag = LiveDragController(binding, viewModel, host = this, drops = workspaceDrops)
         setupEditMode()
         observeState()
+        binding.root.viewTreeObserver.addOnGlobalLayoutListener { syncRootClockForSurface() }
         reconcilePinnedShortcutState()
         maybeShowOnboarding()
         widgets.sweepOrphanIds()
@@ -1022,6 +1035,8 @@ class LauncherActivity :
 
     override fun onStart() {
         super.onStart()
+        rootClockActivityStarted = true
+        syncRootClockForSurface()
         if (::googleDiscover.isInitialized) googleDiscover.onStart()
         MainStallWatch.start()
         startedSinceResume = true
@@ -1038,6 +1053,8 @@ class LauncherActivity :
     }
 
     override fun onStop() {
+        rootClockActivityStarted = false
+        syncRootClockForSurface()
         // The launched app covers the launcher now: its circle can go, and
         // the lifted icon comes back.
         launchPrelude.clear()
@@ -1055,7 +1072,8 @@ class LauncherActivity :
         if (::googleDiscover.isInitialized) googleDiscover.onResume()
         // Cleared after onNewIntent, which runs first on the way back in.
         startedSinceResume = false
-        syncRootClockForLauncher(active = true)
+        rootClockActivityResumed = true
+        syncRootClockForSurface()
         // The launcher is what the user is looking at again, so a drawer still
         // open is one they came back to, not one parked behind an app.
         drawerKeptBehindLaunch = false
@@ -1063,7 +1081,8 @@ class LauncherActivity :
     }
 
     override fun onPause() {
-        syncRootClockForLauncher(active = false)
+        rootClockActivityResumed = false
+        syncRootClockForSurface()
         // Home pressed while a circle was still filling, say: that launch is
         // off. One already asked for carries on.
         launchPrelude.cancelPending()
@@ -1071,31 +1090,70 @@ class LauncherActivity :
         super.onPause()
     }
 
-    private fun syncRootClockForLauncher(active: Boolean) {
-        rootClockLauncherActive = active
+    private fun isHomeSurfaceActive(): Boolean {
+        if (!rootClockWindowFocused) return false
+        if (::drawer.isInitialized && (drawer.isVisible || drawer.isPulling)) return false
+        if (::feed.isInitialized && feed.isVisible) return false
+        if (::search.isInitialized && search.isOpen) return false
+        if (googleDiscoverVisible || desktopPreviews.isShowing) return false
+        if (homeMenuDialog?.isShowing == true) return false
+        if (activeFolderPopup?.isShowing == true) return false
+        if (::drag.isInitialized && drag.activeItemPopup?.isShowing == true) return false
+        if (::editMode.isInitialized && editMode.isOpen) return false
+        if (::widgets.isInitialized && widgets.activeResizeFrame != null) return false
+        return true
+    }
+
+    private fun syncRootClockForSurface() {
+        val state = viewModel.state.value
+        if (!state.loaded) return
+        val prefs = state.prefs
+        val launcherActive = rootClockActivityResumed ||
+            (prefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+        val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
+        val shouldHide = com.supernova.launcher.ui.settings.shouldHideRootClock(
+            prefs.rootHideClock, launcherActive, homeSurface, prefs.rootClockScope
+        )
+        if (rootClockRequestedState == shouldHide) return
+        rootClockRequestedState = shouldHide
+        if (rootClockAppliedHidden == null) rootClockOwnedByFeature = prefs.rootClockAddedToBlacklist
         lifecycleScope.launch {
             rootClockSyncMutex.withLock {
-                val prefs = viewModel.state.value.prefs
-                if (rootClockLauncherActive && prefs.rootHideClock) {
+                val current = viewModel.state.value
+                if (!current.loaded) return@withLock
+                val currentPrefs = current.prefs
+                val launcherIsActive = rootClockActivityResumed ||
+                    (currentPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+                val home = if (currentPrefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
+                val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
+                    currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
+                )
+                if (rootClockAppliedHidden == target) return@withLock
+                if (target) {
                     val added = withContext(Dispatchers.IO) {
                         com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
                     }
-                    if (added == true) {
-                        viewModel.set(Pref.rootClockAddedToBlacklist, true)
-                    } else if (added == null) {
+                    if (added != null) {
+                        if (added) {
+                            rootClockOwnedByFeature = true
+                            viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                        }
+                        rootClockAppliedHidden = true
+                    } else {
+                        rootClockRequestedState = null
                         Log.w("Supernova", "Unable to hide status-bar clock on launcher")
                     }
                 } else {
+                    val owned = rootClockOwnedByFeature || currentPrefs.rootClockAddedToBlacklist
                     val restored = withContext(Dispatchers.IO) {
-                        com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(
-                            prefs.rootClockAddedToBlacklist
-                        )
+                        com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(owned)
                     }
                     if (restored) {
-                        if (prefs.rootClockAddedToBlacklist) {
-                            viewModel.set(Pref.rootClockAddedToBlacklist, false)
-                        }
+                        rootClockOwnedByFeature = false
+                        rootClockAppliedHidden = false
+                        if (owned) viewModel.set(Pref.rootClockAddedToBlacklist, false)
                     } else {
+                        rootClockRequestedState = null
                         Log.w("Supernova", "Unable to restore status-bar clock outside launcher")
                     }
                 }
@@ -1322,6 +1380,7 @@ class LauncherActivity :
                     if (drag.isArmed || drag.activeItemPopup != null) return false
                     drawerPullActive = true
                     drawer.beginPull()
+                    syncRootClockForSurface()
                     drawer.pullTo(-dy)
                     // The Open App Drawer haptic: one tick as the swipe
                     // takes the drawer.
@@ -1607,6 +1666,7 @@ class LauncherActivity :
         // is also triggered directly from openDrawer for immediacy.
         drawer.onOpenStateChanged = { open ->
             animateWallpaperZoom(if (open) 1f else 0f)
+            syncRootClockForSurface()
         }
     }
 
@@ -1671,9 +1731,13 @@ class LauncherActivity :
             cardBinder = cards.binder(afterLaunch = { search.hide() }),
             drawerColumns = { drawer.columns() },
             drawerTiles = { drawer.tileLook() },
-            onShown = ::holdHomeUnderSearch,
+            onShown = { fullScreen ->
+                holdHomeUnderSearch(fullScreen)
+                syncRootClockForSurface()
+            },
             // A widget card it showed took the feed card's widget view.
             onHidden = {
+                syncRootClockForSurface()
                 drawer.holdHomeForSearch(false)
                 if (::feed.isInitialized) {
                     feed.setBehindSearch(false)
@@ -1755,6 +1819,8 @@ class LauncherActivity :
             canPullFromWorkspace = ::feedPullAllowed,
             itemDragArmed = { drag.isArmed || drag.isActive },
             host = object : FeedController.Host {
+                override fun onSurfaceChanged() = syncRootClockForSurface()
+
                 override fun onOpenSearch() {
                     feed.setBehindSearch(true)
                     search.open()
@@ -1968,6 +2034,7 @@ class LauncherActivity :
                     // The stateIn placeholder would paint an empty workspace
                     // for one frame before the real layout decodes.
                     if (!state.loaded) return@collect
+                    syncRootClockForSurface()
                     widgets.rebindRestoredWidgets(state.model)
                     ThemeEngine.applyMode(this@LauncherActivity, state.prefs)
                     if (state.prefs.accentColor != appliedAccent) {
@@ -2173,6 +2240,8 @@ class LauncherActivity :
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        rootClockWindowFocused = hasFocus
+        syncRootClockForSurface()
         if (hasFocus) focusGainedAt = SystemClock.uptimeMillis()
         // A launched app can restore the status bar; re-hide on return.
         if (hasFocus && viewModel.state.value.prefs.hideStatusBar) {
@@ -2720,6 +2789,7 @@ class LauncherActivity :
     private fun openDrawer(forSearch: Boolean = false) {
         animateWallpaperZoom(1f)
         drawer.open(forSearch)
+        syncRootClockForSurface()
     }
 
     // Ramp the wallpaper zoom toward target (0 = normal, 1 = zoomed out).
@@ -2793,6 +2863,7 @@ class LauncherActivity :
 
     private fun hideDrawer(instant: Boolean = false) {
         drawer.hide(instant)
+        syncRootClockForSurface()
     }
 
     // Everything the home screen can have standing over its default page:
@@ -4466,6 +4537,7 @@ class LauncherActivity :
                 drag.onWindowDismissed(popup)
                 activeFolderPopup = null
                 activeFolderAdapter = null
+                syncRootClockForSurface()
                 animateWallpaperZoom(0f)
             }
         )
@@ -4489,6 +4561,7 @@ class LauncherActivity :
         }
         activeFolderPopup = popup
         activeFolderAdapter = adapter
+        syncRootClockForSurface()
     }
 
     // The folder-popup Edit checklist: every visible app, checked = member.
@@ -4667,6 +4740,7 @@ class LauncherActivity :
                 drag.onWindowDismissed(popup)
                 activeFolderPopup = null
                 activeFolderAdapter = null
+                syncRootClockForSurface()
                 // The drawer sheet is usually still open underneath; only
                 // release the wallpaper zoom when it isn't.
                 if (!drawer.isExpanded) animateWallpaperZoom(0f)
@@ -4678,6 +4752,7 @@ class LauncherActivity :
         popup?.let { window -> window.setTouchInterceptor { _, ev -> drag.routeGesture(ev, window) } }
         activeFolderPopup = popup
         activeFolderAdapter = adapter
+        syncRootClockForSurface()
     }
 
     // Full screen over the desktop, the search window keeps it faded as the

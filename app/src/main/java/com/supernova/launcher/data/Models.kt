@@ -154,6 +154,12 @@ data class LauncherModel(
 )
 
 @Serializable
+enum class RootClockScope {
+    LAUNCHER,
+    HOME
+}
+
+@Serializable
 data class LauncherPrefs(
     // Phone grid, 5 columns by 6 rows (see DeviceProfile).
     val gridRows: Int = 6,
@@ -522,6 +528,7 @@ data class LauncherPrefs(
     // (ui/StatusBarIcons name; AUTO follows the theme), nav bar transparency.
     val hideStatusBar: Boolean = false,
     val rootHideClock: Boolean = false,
+    val rootClockScope: RootClockScope = RootClockScope.LAUNCHER,
     val rootClockAddedToBlacklist: Boolean = false,
     val darkStatusIcons: StatusBarIcons = StatusBarIcons.AUTO,
     val transparentNav: Boolean = true,
