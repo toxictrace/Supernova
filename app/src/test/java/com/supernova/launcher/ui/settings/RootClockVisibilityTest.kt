@@ -25,10 +25,19 @@ class RootClockVisibilityTest {
     }
 
     @Test
-    fun homePageIsTheConfiguredDefaultWorkspacePage() {
-        assertTrue(isRootClockHomePage(2, 2))
-        assertFalse(isRootClockHomePage(0, 2))
-        assertFalse(isRootClockHomePage(3, 2))
+    fun everyWorkspacePageCountsAsHomeSurface() {
+        assertTrue(isRootClockWorkspacePage(0))
+        assertTrue(isRootClockWorkspacePage(2))
+        assertTrue(isRootClockWorkspacePage(3))
+        assertFalse(isRootClockWorkspacePage(-1))
+    }
+
+    @Test
+    fun newerCoordinatorRequestInvalidatesOlderWork() {
+        val oldRequest = RootClockCoordinator.request()
+        val latestRequest = RootClockCoordinator.request()
+        assertFalse(RootClockCoordinator.isCurrent(oldRequest))
+        assertTrue(RootClockCoordinator.isCurrent(latestRequest))
     }
 
     @Test
