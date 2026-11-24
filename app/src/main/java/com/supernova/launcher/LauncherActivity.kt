@@ -140,8 +140,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -366,7 +364,7 @@ class LauncherActivity :
     // the time onNewIntent runs - the Lifecycle state is STARTED either way,
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
-    private val rootClockSyncMutex = Mutex()
+    private var rootClockSyncRunning = false
     private var rootClockActivityStarted = false
     private var rootClockActivityResumed = false
     private var rootClockRequestedState: Boolean? = null
@@ -1138,54 +1136,77 @@ class LauncherActivity :
                 "home=$homeSurface target=$shouldHide requested=$rootClockRequestedState " +
                 "applied=$rootClockAppliedHidden owned=$rootClockOwnedByFeature"
         )
-        if (rootClockRequestedState == shouldHide) return
-        rootClockRequestedState = shouldHide
+        // One worker owns all root commands. Surface changes during a command
+        // are picked up by the next loop instead of being queued or discarded.
+        if (rootClockSyncRunning) return
+        rootClockSyncRunning = true
         if (rootClockAppliedHidden == null) rootClockOwnedByFeature = prefs.rootClockAddedToBlacklist
         lifecycleScope.launch {
-            rootClockSyncMutex.withLock {
-                val current = viewModel.state.value
-                if (!current.loaded) return@withLock
-                val currentPrefs = current.prefs
-                val launcherIsActive = rootClockActivityResumed ||
-                    (currentPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
-                val home = if (currentPrefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
-                val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
-                    currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
-                )
-                // The surface can change while this coroutine waits for the mutex.
-                // Keep the request cache aligned with the state rechecked under the lock.
-                rootClockRequestedState = target
-                if (rootClockAppliedHidden == target) return@withLock
-                if (target) {
-                    val added = withContext(Dispatchers.IO) {
-                        com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
+            try {
+                while (true) {
+                    val current = viewModel.state.value
+                    if (!current.loaded) break
+                    val currentPrefs = current.prefs
+                    val launcherIsActive = rootClockActivityResumed ||
+                        (currentPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+                    val home = if (currentPrefs.rootClockScope == RootClockScope.HOME) {
+                        isHomeSurfaceActive()
+                    } else {
+                        true
                     }
-                    if (added != null) {
-                        if (added) {
-                            rootClockOwnedByFeature = true
-                            viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                    val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
+                        currentPrefs.rootHideClock, launcherIsActive, home, currentPrefs.rootClockScope
+                    )
+                    rootClockRequestedState = target
+                    if (rootClockAppliedHidden != target) {
+                        if (target) {
+                            val added = withContext(Dispatchers.IO) {
+                                com.supernova.launcher.ui.settings.RootStatusBarClock.hideClock()
+                            }
+                            if (added == null) {
+                                rootClockRequestedState = null
+                                Log.w("Supernova", "Unable to hide status-bar clock on launcher")
+                                break
+                            }
+                            if (added) {
+                                rootClockOwnedByFeature = true
+                                viewModel.set(Pref.rootClockAddedToBlacklist, true)
+                            }
+                            rootClockAppliedHidden = true
+                            Log.i("Supernova", "root_clock hide added=$added")
+                        } else {
+                            val owned = rootClockOwnedByFeature || currentPrefs.rootClockAddedToBlacklist
+                            val restored = withContext(Dispatchers.IO) {
+                                com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(owned)
+                            }
+                            Log.i("Supernova", "root_clock restore owned=$owned success=$restored")
+                            if (!restored) {
+                                rootClockRequestedState = null
+                                Log.w("Supernova", "Unable to restore status-bar clock outside launcher")
+                                break
+                            }
+                            rootClockOwnedByFeature = false
+                            rootClockAppliedHidden = false
+                            if (owned) viewModel.set(Pref.rootClockAddedToBlacklist, false)
                         }
-                        rootClockAppliedHidden = true
-                        Log.i("Supernova", "root_clock hide added=$added")
+                    }
+                    val latest = viewModel.state.value
+                    if (!latest.loaded) break
+                    val latestPrefs = latest.prefs
+                    val latestActive = rootClockActivityResumed ||
+                        (latestPrefs.rootClockScope == RootClockScope.LAUNCHER && rootClockActivityStarted)
+                    val latestHome = if (latestPrefs.rootClockScope == RootClockScope.HOME) {
+                        isHomeSurfaceActive()
                     } else {
-                        rootClockRequestedState = null
-                        Log.w("Supernova", "Unable to hide status-bar clock on launcher")
+                        true
                     }
-                } else {
-                    val owned = rootClockOwnedByFeature || currentPrefs.rootClockAddedToBlacklist
-                    val restored = withContext(Dispatchers.IO) {
-                        com.supernova.launcher.ui.settings.RootStatusBarClock.showClock(owned)
-                    }
-                    Log.i("Supernova", "root_clock restore owned=$owned success=$restored")
-                    if (restored) {
-                        rootClockOwnedByFeature = false
-                        rootClockAppliedHidden = false
-                        if (owned) viewModel.set(Pref.rootClockAddedToBlacklist, false)
-                    } else {
-                        rootClockRequestedState = null
-                        Log.w("Supernova", "Unable to restore status-bar clock outside launcher")
-                    }
+                    val latestTarget = com.supernova.launcher.ui.settings.shouldHideRootClock(
+                        latestPrefs.rootHideClock, latestActive, latestHome, latestPrefs.rootClockScope
+                    )
+                    if (latestTarget == target) break
                 }
+            } finally {
+                rootClockSyncRunning = false
             }
         }
     }
