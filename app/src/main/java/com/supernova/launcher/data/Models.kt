@@ -159,7 +159,7 @@ enum class RootClockMode {
     LAUNCHER,
     HOME;
 
-    object Names : SettingEnumSerializer<RootClockMode>("RootClockMode", entries, NO_HIDE)
+    object Names : SettingEnumSerializer<RootClockMode>("RootClockMode", entries, LAUNCHER)
 }
 
 @Serializable
@@ -541,8 +541,7 @@ data class LauncherPrefs(
     // System chrome: status bar hidden on the launcher, forced icon tint
     // (ui/StatusBarIcons name; AUTO follows the theme), nav bar transparency.
     val hideStatusBar: Boolean = false,
-    val rootClockMode: RootClockMode = RootClockMode.NO_HIDE,
-    val rootClockAddedToBlacklist: Boolean = false,
+    val rootClockMode: RootClockMode = RootClockMode.LAUNCHER,
     val darkStatusIcons: StatusBarIcons = StatusBarIcons.AUTO,
     val transparentNav: Boolean = true,
     // Nav bar button tint (ui/NavBarButtons); AUTO follows the theme.

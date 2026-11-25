@@ -25,6 +25,12 @@ object StoreKeys {
     val deviceProfileApplied: Preferences.Key<Boolean> = booleanPreferencesKey("device_profile_applied")
     val homePromptShown: Preferences.Key<Boolean> = booleanPreferencesKey("home_prompt_shown")
 
+    // Device-local ownership of the SystemUI clock blacklist entry.
+    // These values are operational state, not settings or backup content.
+    val rootClockEntryOwned: Preferences.Key<Boolean> = booleanPreferencesKey("root_clock_added_to_blacklist")
+    val rootClockOriginalBlacklist: Preferences.Key<String> = stringPreferencesKey("root_clock_original_blacklist")
+    const val ROOT_CLOCK_UNSET = "__SUPERNOVA_ROOT_CLOCK_UNSET__"
+
     // When Labs' Clear icon cache last ran. Every open activity's catalog
     // keeps its own cache, so the request travels through the store.
     // A signal, not a setting: not a backup item.

@@ -243,6 +243,29 @@ class LauncherPreferences(private val context: Context) {
     // Read once at process start so the theme is set before any inflation.
     suspend fun snapshot(): LauncherPrefs = flow.first()
 
+    // Clock blacklist ownership is device-local. Keep the historic boolean
+    // key so upgrades retain it, but exclude both markers from backups.
+    suspend fun rootClockEntryOwned(): Boolean =
+        context.supernovaStore.data.first()[StoreKeys.rootClockEntryOwned] ?: false
+
+    suspend fun rootClockOriginalBlacklist(): String? =
+        context.supernovaStore.data.first()[StoreKeys.rootClockOriginalBlacklist]
+            ?.takeUnless { it == StoreKeys.ROOT_CLOCK_UNSET }
+
+    suspend fun claimRootClockEntry(originalBlacklist: String?) {
+        context.supernovaStore.edit {
+            it[StoreKeys.rootClockOriginalBlacklist] = originalBlacklist ?: StoreKeys.ROOT_CLOCK_UNSET
+            it[StoreKeys.rootClockEntryOwned] = true
+        }
+    }
+
+    suspend fun releaseRootClockEntry() {
+        context.supernovaStore.edit {
+            it[StoreKeys.rootClockEntryOwned] = false
+            it.remove(StoreKeys.rootClockOriginalBlacklist)
+        }
+    }
+
     // Labs' Clear icon cache: every catalog listening drops its icons.
     val iconCacheClearsFlow: Flow<Long> = context.supernovaStore.data
         .map { it[StoreKeys.iconCacheCleared] ?: 0L }

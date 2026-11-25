@@ -2,49 +2,63 @@ package com.supernova.launcher.ui.settings
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RootStatusBarClockTest {
     @Test
-    fun `adding clock preserves existing blacklist entries`() {
-        val (updated, added) = IconBlacklist.addClock("wifi,battery")
-        assertEquals("battery,clock,wifi", updated)
-        assertTrue(added)
+    fun addingClockPreservesExistingBlacklistEntries() {
+        assertEquals("battery,clock,wifi", IconBlacklist.addClock("wifi,battery"))
     }
 
     @Test
-    fun `unset blacklist retains standard AOSP exclusions`() {
-        val (updated, added) = IconBlacklist.addClock("null")
-        assertEquals("clock,headset,rotate", updated)
-        assertTrue(added)
+    fun addingClockToUnsetBlacklistPreservesAospDefaults() {
+        assertEquals("clock,headset,rotate", IconBlacklist.addClock("null"))
     }
 
     @Test
-    fun `already hidden clock is not claimed by this feature`() {
-        val (updated, added) = IconBlacklist.addClock("clock,wifi")
-        assertEquals("clock,wifi", updated)
-        assertFalse(added)
+    fun alreadyHiddenClockIsNotChanged() {
+        assertEquals("clock,wifi", IconBlacklist.addClock("clock,wifi"))
     }
 
     @Test
-    fun `clock presence is read from the actual blacklist`() {
+    fun clockPresenceIsReadFromTheActualBlacklist() {
         assertTrue(IconBlacklist.containsClock("clock,wifi"))
         assertFalse(IconBlacklist.containsClock("wifi,battery"))
         assertFalse(IconBlacklist.containsClock("null"))
     }
 
     @Test
-    fun `removing clock preserves all other entries`() {
-        assertEquals("battery,wifi", IconBlacklist.removeClock("clock,wifi,battery"))
+    fun removingClockPreservesAllOtherEntries() {
+        assertEquals("wifi,battery", IconBlacklist.removeClock("wifi,clock,battery"))
     }
 
     @Test
-    fun `removing feature clock preserves default AOSP slots`() {
-        assertEquals("headset,rotate", IconBlacklist.removeClock("clock,headset,rotate"))
+    fun removingOnlyClockRestoresUnsetBlacklist() {
+        assertNull(IconBlacklist.removeClock("clock"))
     }
+
     @Test
-    fun `only a clock entry owned by this feature is restored`() {
+    fun originalUnsetBlacklistIsRestoredAsUnset() {
+        assertNull(IconBlacklist.restoreValue("clock,headset,rotate", null))
+    }
+
+    @Test
+    fun originalExplicitBlacklistIsRestoredExactly() {
+        assertEquals("wifi,battery", IconBlacklist.restoreValue("battery,clock,wifi", "wifi,battery"))
+    }
+
+    @Test
+    fun externalBlacklistChangesArePreserved() {
+        assertEquals(
+            "battery,wifi,bluetooth",
+            IconBlacklist.restoreValue("battery,clock,wifi,bluetooth", "wifi,battery")
+        )
+    }
+
+    @Test
+    fun onlyAClockEntryOwnedByThisFeatureIsRestored() {
         assertTrue(shouldRestoreClock(owned = true, clockPresent = true))
         assertFalse(shouldRestoreClock(owned = false, clockPresent = true))
         assertFalse(shouldRestoreClock(owned = true, clockPresent = false))

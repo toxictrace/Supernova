@@ -47,9 +47,22 @@ class PrefRegistryTest {
     }
 
     @Test
-    fun `clock mode defaults to no hide`() {
-        assertEquals(RootClockMode.NO_HIDE, LauncherPrefs().rootClockMode)
-        assertFalse(LauncherPrefs().rootClockAddedToBlacklist)
+    fun `clock mode defaults to launcher wide`() {
+        assertEquals(RootClockMode.LAUNCHER, LauncherPrefs().rootClockMode)
+    }
+
+    @Test
+    fun `every saved clock mode reads back unchanged`() {
+        RootClockMode.entries.forEach { mode ->
+            val stored = mutablePreferencesOf(Pref.rootClockMode.key to mode.name)
+            assertEquals(mode, LauncherPreferences.decode(stored).rootClockMode)
+        }
+    }
+
+    @Test
+    fun `clock ownership markers are not user settings`() {
+        assertFalse(Pref.all.any { it.key.name == "root_clock_added_to_blacklist" })
+        assertFalse(Pref.all.any { it.key.name == "root_clock_original_blacklist" })
     }
 
     @Test

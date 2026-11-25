@@ -1103,27 +1103,20 @@ class LauncherActivity :
         return true
     }
 
-    private data class RootClockTargetSnapshot(
-        val target: Boolean,
-        val started: Boolean,
+    private data class RootClockSurfaceSnapshot(
+        val launcherActive: Boolean,
         val homeSurface: Boolean
     )
 
-    private fun rootClockTargetSnapshot(state: LauncherUiState): RootClockTargetSnapshot {
-        val started = rootClockActivityStarted
-        val prefs = state.prefs
-        val homeSurface = if (prefs.rootClockMode == RootClockMode.HOME) isHomeSurfaceActive() else true
-        val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
-            prefs.rootClockMode,
-            started,
-            homeSurface
-        )
-        return RootClockTargetSnapshot(target, started, homeSurface)
+    private fun rootClockSurfaceSnapshot(state: LauncherUiState): RootClockSurfaceSnapshot {
+        val launcherActive = rootClockActivityStarted
+        val homeSurface = state.loaded &&
+            (state.prefs.rootClockMode != RootClockMode.HOME || isHomeSurfaceActive())
+        return RootClockSurfaceSnapshot(launcherActive, homeSurface)
     }
 
     private fun syncRootClockForSurface() {
         val state = viewModel.state.value
-        if (!state.loaded) return
 
         // An older launcher instance must not override the currently started one.
         val anotherStartedLauncher = liveLaunchers.any { reference ->
@@ -1132,8 +1125,11 @@ class LauncherActivity :
         }
         if (!rootClockActivityStarted && anotherStartedLauncher) return
 
-        val snapshot = rootClockTargetSnapshot(state)
-        (application as SupernovaApp).graph.rootClock.request(snapshot.target)
+        val snapshot = rootClockSurfaceSnapshot(state)
+        (application as SupernovaApp).graph.rootClock.updateLauncherState(
+            snapshot.launcherActive,
+            snapshot.homeSurface
+        )
     }
 
     override fun onPostResume() {
@@ -2223,6 +2219,10 @@ class LauncherActivity :
         if (hasFocus && viewModel.state.value.prefs.hideStatusBar) {
             applyStatusBarVisibility(true)
         }
+        // Window focus is not launcher visibility. Reconcile without changing
+        // the saved mode or treating a temporary focus loss as leaving Home.
+        syncRootClockForSurface()
+        (application as SupernovaApp).graph.rootClock.reapply()
     }
 
     // Whether the workspace pager can still move in a direction (+1 = next

@@ -1,15 +1,13 @@
 package com.supernova.launcher.ui.settings
 
 import com.supernova.launcher.data.LauncherPreferences
-import com.supernova.launcher.data.Pref
-import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /**
  * Changes only SystemUI's status-bar clock slot.
  *
- * Ownership is stored before the first write. An inconclusive verification
- * never clears it, so a later restore can finish the operation safely.
+ * Ownership and the previous blacklist value are device-local. Existing
+ * user entries are preserved, and an unset setting is restored as unset.
  */
 internal object RootStatusBarClock {
     private const val SETTING = "icon_blacklist"
@@ -20,45 +18,48 @@ internal object RootStatusBarClock {
         hidden: Boolean,
         preferences: LauncherPreferences
     ): Boolean {
-        val owned = preferences.flow.first().rootClockAddedToBlacklist
+        val owned = preferences.rootClockEntryOwned()
+
+        // Showing the clock needs no root access when this feature owns no
+        // blacklist entry. This also avoids pointless retries without root.
+        if (!hidden && !owned) return true
 
         val current = runRoot("settings get secure $SETTING") ?: return false
-        val actuallyHidden = IconBlacklist.containsClock(current)
+        val clockPresent = IconBlacklist.containsClock(current)
 
         if (hidden) {
-            // A pre-existing clock entry belongs to the user, not this feature.
-            if (actuallyHidden) return true
+            // A clock hidden before this feature was enabled belongs to the user.
+            if (clockPresent) return true
 
-            val (updated, added) = IconBlacklist.addClock(current)
-            if (!added) return true
-
-            if (!owned) preferences.set(Pref.rootClockAddedToBlacklist, true)
+            val updated = IconBlacklist.addClock(current)
+            if (!owned) {
+                val original = current.takeUnless { it.isBlank() || it == "null" }
+                preferences.claimRootClockEntry(original)
+            }
             if (!write(updated)) return false
 
-            // Keep ownership on false/null verification. The write may have
-            // reached SystemUI even when the follow-up read did not.
+            // Ownership remains set until a verified restore completes.
             return isClockHidden() == true
         }
 
-        if (!shouldRestoreClock(owned, actuallyHidden)) {
-            if (owned && !actuallyHidden) {
-                preferences.set(Pref.rootClockAddedToBlacklist, false)
-            }
+        if (!shouldRestoreClock(owned, clockPresent)) {
+            if (owned && !clockPresent) preferences.releaseRootClockEntry()
             return true
         }
 
-        val updated = IconBlacklist.removeClock(current)
-        val written = if (updated == null) {
+        val original = preferences.rootClockOriginalBlacklist()
+        val restoreValue = IconBlacklist.restoreValue(current, original)
+        val written = if (restoreValue == null) {
             runRoot("settings delete secure $SETTING") != null
         } else {
-            write(updated)
+            write(restoreValue)
         }
         if (!written) return false
 
         val verified = isClockHidden() ?: return false
         if (verified) return false
 
-        preferences.set(Pref.rootClockAddedToBlacklist, false)
+        preferences.releaseRootClockEntry()
         return true
     }
 
@@ -86,28 +87,42 @@ internal object RootStatusBarClock {
         "'" + value.replace("'", "'\\''") + "'"
 }
 
-/** Pure list operations, separated so preservation rules can be unit-tested. */
+/** Pure list operations, preserving the user's entries. */
 internal object IconBlacklist {
-    private val aospDefaults = listOf("rotate", "headset")
+    private val aospDefaults = listOf("headset", "rotate")
 
-    fun addClock(raw: String?): Pair<String, Boolean> {
-        val slots = parse(raw)
-        if ("clock" in slots) return slots.sorted().joinToString(",") to false
-        return (slots + "clock").sorted().joinToString(",") to true
+    fun addClock(raw: String?): String {
+        val slots = parse(raw).ifEmpty { aospDefaults }
+        if ("clock" in slots) return slots.joinToString(",")
+        return (slots + "clock").distinct().sorted().joinToString(",")
     }
 
-    fun removeClock(raw: String?): String? {
-        val slots = parse(raw) - "clock"
-        return slots.sorted().joinToString(",").takeIf { it.isNotEmpty() }
+    fun defaultBlacklist(): String = aospDefaults.joinToString(",")
+
+    private fun normalized(raw: String): String = parse(raw).sorted().joinToString(",")
+
+    fun removeClock(raw: String?): String? =
+        parse(raw).filterNot { it == "clock" }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(",")
+
+    fun restoreValue(raw: String?, original: String?): String? {
+        val withoutClock = removeClock(raw)
+        val matchesOriginal = if (original == null) {
+            withoutClock == defaultBlacklist()
+        } else {
+            withoutClock == normalized(original)
+        }
+        return if (matchesOriginal) original else withoutClock
     }
 
     fun containsClock(raw: String?): Boolean = "clock" in parse(raw)
 
-    private fun parse(raw: String?): Set<String> =
+    private fun parse(raw: String?): List<String> =
         if (raw.isNullOrBlank() || raw.trim() == "null") {
-            aospDefaults.toSet()
+            emptyList()
         } else {
-            raw.split(',').map(String::trim).filter(String::isNotEmpty).toSet()
+            raw.split(',').map(String::trim).filter(String::isNotEmpty).distinct()
         }
 }
 

@@ -337,7 +337,6 @@ object Pref {
     val launchAnimation = choice("launch_animation", LaunchAnimation.entries)
     val hideStatusBar = bool("hide_status_bar")
     val rootClockMode = choice("root_clock_mode", RootClockMode.entries)
-    val rootClockAddedToBlacklist = bool("root_clock_added_to_blacklist")
     val darkStatusIcons = choice("dark_status_icons", StatusBarIcons.entries)
     val transparentNav = bool("transparent_nav")
     val navBarButtons = choice("nav_bar_buttons", NavBarButtons.entries)
