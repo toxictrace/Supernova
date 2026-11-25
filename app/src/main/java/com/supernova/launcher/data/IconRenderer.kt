@@ -226,8 +226,8 @@ class IconRenderer(context: Context) {
         return if (shadow) withShadow(bitmap, mask) else bitmap.toDrawable(resources)
     }
 
-    // A missing icon-pack entry: the app's artwork, circularly cropped,
-    // on a plate in the selected shape, coloured from the complete app icon.
+    // A missing icon-pack entry: square artwork is circularly cropped;
+    // artwork with transparent corners keeps its original silhouette.
     fun renderMissingPackIcon(
         source: Drawable,
         shape: IconShape,
@@ -248,22 +248,19 @@ class IconRenderer(context: Context) {
         foreground.draw(Canvas(artwork))
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
+        val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
-        val radius = (
-            largestInscribedCircleRadius(shapePath, size) * MISSING_ICON_CIRCLE_FRACTION
-        ).roundToInt().coerceAtLeast(1)
-        val circleSize = radius * 2
-        val circle = Path().apply {
-            addCircle(size / 2f, size / 2f, radius.toFloat(), Path.Direction.CW)
-        }
+        val radius = largestInscribedCircleRadius(shapePath, size).coerceAtLeast(1)
+        val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
-        val artworkScale = maxOf(
-            circleSize.toFloat() / sourceWidth,
-            circleSize.toFloat() / sourceHeight
-        )
-        val targetWidth = sourceWidth * artworkScale
-        val targetHeight = sourceHeight * artworkScale
+        val scale = if (isAlreadyRound) {
+            minOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
+        } else {
+            maxOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
+        }
+        val targetWidth = sourceWidth * scale
+        val targetHeight = sourceHeight * scale
         val center = size / 2f
         val artworkTarget = RectF(
             center - targetWidth / 2f,
@@ -271,30 +268,37 @@ class IconRenderer(context: Context) {
             center + targetWidth / 2f,
             center + targetHeight / 2f
         )
+        val circle = Path().apply {
+            addCircle(center, center, radius.toFloat(), Path.Direction.CW)
+        }
 
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
-            val plate = back?.mutate()
-            val previousFilter = plate?.colorFilter
-            if (plate != null) {
-                try {
-                    plate.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY)
-                    plate.setBounds(0, 0, size, size)
-                    plate.draw(this)
-                } finally {
-                    plate.colorFilter = previousFilter
+            if (back != null) {
+                back.mutate().apply {
+                    setBounds(0, 0, size, size)
+                    draw(this@withClip)
                 }
             } else {
                 drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
             }
-            withClip(circle) {
+            if (isAlreadyRound) {
                 drawBitmap(
                     artwork,
                     artworkBounds,
                     artworkTarget,
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                 )
+            } else {
+                withClip(circle) {
+                    drawBitmap(
+                        artwork,
+                        artworkBounds,
+                        artworkTarget,
+                        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                    )
+                }
             }
             upon?.let {
                 it.setBounds(0, 0, size, size)
@@ -302,7 +306,6 @@ class IconRenderer(context: Context) {
             }
         }
         artwork.recycle()
-        // The circular artwork has no separate drop shadow on the plate.
         return output.toDrawable(resources)
     }
 
@@ -327,6 +330,19 @@ class IconRenderer(context: Context) {
         }
         if (right < left || bottom < top) return null
         return android.graphics.Rect(left, top, right + 1, bottom + 1)
+    }
+
+    private fun hasTransparentCorners(bitmap: Bitmap, bounds: android.graphics.Rect): Boolean {
+        val left = bounds.left.coerceIn(0, bitmap.width - 1)
+        val top = bounds.top.coerceIn(0, bitmap.height - 1)
+        val right = (bounds.right - 1).coerceIn(0, bitmap.width - 1)
+        val bottom = (bounds.bottom - 1).coerceIn(0, bitmap.height - 1)
+        return listOf(
+            bitmap.get(left, top),
+            bitmap.get(right, top),
+            bitmap.get(left, bottom),
+            bitmap.get(right, bottom)
+        ).all { Color.alpha(it) <= 8 }
     }
 
     private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
@@ -861,7 +877,6 @@ class IconRenderer(context: Context) {
         // White like the platform's default adaptive plate; content sits at
         // roughly the adaptive foreground safe-zone fraction.
         private const val PLATE_COLOR = 0xFFF3F3F3.toInt()
-        private const val MISSING_ICON_CIRCLE_FRACTION = 0.84f
         private const val PLATE_RADIUS_FRACTION = 0.25f
         private const val PLATE_CONTENT = 0.66f
         // On a plate cut to the icon's shape the logo is the whole icon, not a
