@@ -383,7 +383,8 @@ class IconRenderer(context: Context) {
             }
 
             if (glassMask == null) {
-                val iconMask = decoration?.mask
+                // A user-selected shape replaces the icon pack's own mask.
+                val iconMask = decoration?.mask?.takeIf { shapePath == null }
                 if (iconMask == null) {
                     drawAppIcon(canvas)
                 } else {
@@ -545,11 +546,6 @@ class IconRenderer(context: Context) {
         val offset = (iconSizePx - drawnSize) / 2
 
         val adaptive = source as? AdaptiveIconDrawable
-        val drawable = if (hasBack && adaptive != null) {
-            adaptive.foreground ?: return
-        } else {
-            source
-        }
 
         val save = if (hasBack && adaptive != null) {
             val mask = Path(glassPainter.systemMask(adaptive, iconSizePx))
@@ -562,8 +558,9 @@ class IconRenderer(context: Context) {
         }
 
         try {
-            drawable.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
-            drawable.draw(canvas)
+            // Keep both adaptive layers. The pack back stays behind the complete app icon.
+            source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
+            source.draw(canvas)
         } finally {
             if (save >= 0) canvas.restoreToCount(save)
         }
@@ -590,20 +587,14 @@ class IconRenderer(context: Context) {
                 offset + drawnSize + bleed
             )
 
-            if (hasBack) {
-                source.foreground?.let {
-                    it.bounds = bounds
-                    it.draw(canvas)
-                }
-            } else {
-                source.background?.let {
-                    it.bounds = bounds
-                    it.draw(canvas)
-                }
-                source.foreground?.let {
-                    it.bounds = bounds
-                    it.draw(canvas)
-                }
+            // Preserve the app's complete adaptive artwork over the pack back.
+            source.background?.let {
+                it.bounds = bounds
+                it.draw(canvas)
+            }
+            source.foreground?.let {
+                it.bounds = bounds
+                it.draw(canvas)
             }
             return
         }
