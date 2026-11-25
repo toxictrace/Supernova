@@ -667,6 +667,8 @@
     <string name="reshape_legacy">Изменять форму старых значков</string>
     <string name="reshape_legacy_auto">Только масштабировать</string>
     <string name="reshape_legacy_on">Масштабировать и добавлять фон</string>
+    <string name="normalize_icon_size">Нормализовать размер значков</string>
+    <string name="normalize_icon_size_summary">Уменьшать крупные значки до размеров, соответствующих рекомендациям Material Design</string>
     <string name="drawer_pull_to_search">Потянуть для поиска</string>
     <string name="folder_prioritize_first">Выделять первый значок</string>
     <string name="folder_prioritize_first_summary">Первое приложение отображается крупно, остальные — мелко</string>
@@ -700,6 +702,8 @@
     <string name="auto_add_apps">Добавлять новые приложения на главный экран</string>
     <string name="label_font">Шрифт подписи</string>
     <string name="label_single_line">Подписи в одну строку</string>
+    <string name="label_even_rows">Равные интервалы между рядами</string>
+    <string name="label_even_rows_summary">В списке приложений и папках предусмотрено место для двухстрочных подписей</string>
     <string name="icon_size">Размер значков</string>
     <string name="icon_size_fitted">Значки имеют максимальный размер для этой сетки. Уменьшите количество строк или столбцов либо отключите подписи, чтобы увеличить значки.</string>
     <string name="label_group">Подписи значков</string>
@@ -820,6 +824,7 @@
     <string name="search_bar_shadow">Тень</string>
     <string name="search_bar_hint_text">Показывать текст «Поиск»</string>
     <string name="drawer_bar_hint_text">Показывать текст «Поиск»</string>
+    <string name="search_window_hint_text">Показывать текст «Поиск»</string>
     <string name="search_bar_chips">Кнопки</string>
     <string name="search_bar_chip_voice">Голосовой поиск</string>
     <string name="search_bar_chip_assistant">Ассистент</string>
