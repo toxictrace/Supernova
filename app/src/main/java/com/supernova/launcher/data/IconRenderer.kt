@@ -116,6 +116,57 @@ class IconRenderer(context: Context) {
         return if (shadow) withShadow(flat, glassMask) else BitmapDrawable(resources, flat)
     }
 
+
+    // Applies the user's selected shape to the completed icon, after every
+    // source and icon-pack layer has been composed. Existing shadows are
+    // removed before clipping and rebuilt from the final silhouette.
+    fun applyFinalShape(
+        source: Drawable,
+        shape: IconShape,
+        customShape: CustomShapeSpec?,
+        glass: IconGlass = IconGlass.OFF
+    ): Drawable {
+        val size = iconSizePx
+        val shapePath = shape.pathFor(size.toFloat(), customShape) ?: return source
+        val previousShadow = source as? ShadowedIconDrawable
+
+        val content = createBitmap(size, size)
+        val contentCanvas = Canvas(content)
+        if (previousShadow != null) {
+            val sourceSize = previousShadow.intrinsicWidth
+            val sourceRect = android.graphics.Rect(
+                previousShadow.margin,
+                previousShadow.margin,
+                previousShadow.margin + sourceSize,
+                previousShadow.margin + sourceSize
+            )
+            contentCanvas.drawBitmap(
+                previousShadow.bitmap,
+                sourceRect,
+                android.graphics.Rect(0, 0, size, size),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        } else {
+            source.setBounds(0, 0, size, size)
+            source.draw(contentCanvas)
+        }
+
+        val shaped = createBitmap(size, size)
+        val canvas = Canvas(shaped)
+        canvas.drawBitmap(content, 0f, 0f, null)
+        content.recycle()
+        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+        }
+        canvas.drawPath(shapePath, maskPaint)
+
+        return if (shadow || previousShadow != null) {
+            withShadow(shaped, shapePath.takeIf { glass != IconGlass.OFF })
+        } else {
+            shaped.toDrawable(resources)
+        }
+    }
+
     // A picture an app made for its shortcut (a contact's photo) that fills
     // its frame: drawn whole across the icon's shape - the chosen one, or
     // the platform's mask with System - enlarged only as far as a round
