@@ -153,12 +153,13 @@ data class LauncherModel(
     val feedOrder: List<String> = emptyList()
 )
 
-@Serializable(with = RootClockScope.Names::class)
-enum class RootClockScope {
+@Serializable(with = RootClockMode.Names::class)
+enum class RootClockMode {
+    NO_HIDE,
     LAUNCHER,
     HOME;
 
-    object Names : SettingEnumSerializer<RootClockScope>("RootClockScope", entries, LAUNCHER)
+    object Names : SettingEnumSerializer<RootClockMode>("RootClockMode", entries, NO_HIDE)
 }
 
 @Serializable
@@ -540,8 +541,7 @@ data class LauncherPrefs(
     // System chrome: status bar hidden on the launcher, forced icon tint
     // (ui/StatusBarIcons name; AUTO follows the theme), nav bar transparency.
     val hideStatusBar: Boolean = false,
-    val rootHideClock: Boolean = false,
-    val rootClockScope: RootClockScope = RootClockScope.LAUNCHER,
+    val rootClockMode: RootClockMode = RootClockMode.NO_HIDE,
     val rootClockAddedToBlacklist: Boolean = false,
     val darkStatusIcons: StatusBarIcons = StatusBarIcons.AUTO,
     val transparentNav: Boolean = true,

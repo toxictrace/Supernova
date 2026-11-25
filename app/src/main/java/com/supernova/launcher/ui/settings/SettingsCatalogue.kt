@@ -10,7 +10,7 @@ import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.LockMethod
 import com.supernova.launcher.data.Pref
 import com.supernova.launcher.data.PrefWrite
-import com.supernova.launcher.data.RootClockScope
+import com.supernova.launcher.data.RootClockMode
 import com.supernova.launcher.data.SearchWindowMode
 import kotlin.math.roundToInt
 import com.supernova.launcher.ui.BadgePosition
@@ -128,8 +128,7 @@ object SettingsCatalogue {
         // Opens a section by title (a built-in card's own settings page,
         // the Desktop search bar page).
         val openSection: (Int) -> Unit = {},
-        val onRootClockChanged: (Boolean) -> Unit = {},
-        val onRootClockScopeChanged: (RootClockScope) -> Unit = {}
+        val onRootClockModeChanged: (RootClockMode) -> Unit = {}
     )
 
     // Builds the rows whose tap offers one value out of a list. The pick
@@ -507,19 +506,18 @@ object SettingsCatalogue {
                     get = { it.hideStatusBar },
                     set = { viewModel.set(Pref.hideStatusBar, it) }
                 ),
-                SettingItem.Toggle(
-                    R.string.root_hide_clock,
-                    get = { it.rootHideClock },
-                    set = actions.onRootClockChanged,
-                ),
                 rows.choice(
-                    R.string.root_clock_scope,
-                    RootClockScope.entries,
-                    { it.rootClockScope },
-                    { if (it == RootClockScope.LAUNCHER) R.string.root_clock_scope_launcher else R.string.root_clock_scope_home }
-                ) { actions.onRootClockScopeChanged(it) }.hiddenWhen {
-                    needsOn(R.string.root_hide_clock, !it.rootHideClock)
-                }.nested(),
+                    R.string.root_hide_clock,
+                    RootClockMode.entries,
+                    { it.rootClockMode },
+                    {
+                        when (it) {
+                            RootClockMode.NO_HIDE -> R.string.root_clock_mode_no_hide
+                            RootClockMode.LAUNCHER -> R.string.root_clock_scope_launcher
+                            RootClockMode.HOME -> R.string.root_clock_scope_home
+                        }
+                    }
+                ) { actions.onRootClockModeChanged(it) },
                 rows.choice(
                     R.string.status_bar_icons, StatusBarIcons.entries,
                     { it.darkStatusIcons }, { EnumLabels.of(it) }

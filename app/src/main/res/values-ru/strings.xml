@@ -913,8 +913,8 @@
     <string name="apk_saved_base">Базовый APK сохранён. Приложение использует разделённые APK.</string>
     <string name="apk_save_failed">Не удалось сохранить APK</string>
     <string name="hide_status_bar">Скрыть строку состояния</string>
-    <string name="root_hide_clock">Отключить часы (нужны рут-права)</string>
-    <string name="root_clock_scope">Где скрывать часы</string>
+    <string name="root_hide_clock">Часы строки состояния</string>
+    <string name="root_clock_mode_no_hide">Не скрывать</string>
     <string name="root_clock_scope_launcher">Во всём лончере</string>
     <string name="root_clock_scope_home">Только на домашнем экране</string>
     <string name="root_hide_clock_summary">Требуются рут-права. Остальные значки строки состояния останутся видимыми.</string>

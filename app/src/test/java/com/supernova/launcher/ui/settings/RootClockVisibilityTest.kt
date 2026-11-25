@@ -1,41 +1,34 @@
 package com.supernova.launcher.ui.settings
 
-import com.supernova.launcher.data.RootClockScope
+import com.supernova.launcher.data.RootClockMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RootClockVisibilityTest {
     @Test
-    fun disabledOptionNeverHidesClock() {
-        assertFalse(shouldHideRootClock(false, true, true, RootClockScope.LAUNCHER))
-        assertFalse(shouldHideRootClock(false, true, true, RootClockScope.HOME))
+    fun noHideNeverHidesClock() {
+        assertFalse(shouldHideRootClock(RootClockMode.NO_HIDE, true, true))
+        assertFalse(shouldHideRootClock(RootClockMode.NO_HIDE, true, false))
+        assertFalse(shouldHideRootClock(RootClockMode.NO_HIDE, false, true))
     }
 
     @Test
-    fun launcherScopeHidesClockOnEveryLauncherSurface() {
-        assertTrue(shouldHideRootClock(true, true, true, RootClockScope.LAUNCHER))
-        assertTrue(shouldHideRootClock(true, true, false, RootClockScope.LAUNCHER))
+    fun launcherModeHidesClockOnEveryLauncherSurface() {
+        assertTrue(shouldHideRootClock(RootClockMode.LAUNCHER, true, true))
+        assertTrue(shouldHideRootClock(RootClockMode.LAUNCHER, true, false))
     }
 
     @Test
-    fun homeScopeHidesClockOnlyOnConfiguredHomeSurface() {
-        assertTrue(shouldHideRootClock(true, true, true, RootClockScope.HOME))
-        assertFalse(shouldHideRootClock(true, true, false, RootClockScope.HOME))
-    }
-
-    @Test
-    fun windowFocusLossDoesNotChangeClockVisibilityWhileLauncherIsResumed() {
-        assertTrue(shouldHideRootClock(true, true, true, RootClockScope.LAUNCHER))
-        assertTrue(shouldHideRootClock(true, true, false, RootClockScope.LAUNCHER))
-        assertTrue(shouldHideRootClock(true, true, true, RootClockScope.HOME))
-        assertFalse(shouldHideRootClock(true, true, false, RootClockScope.HOME))
+    fun homeModeHidesClockOnlyOnHomeSurface() {
+        assertTrue(shouldHideRootClock(RootClockMode.HOME, true, true))
+        assertFalse(shouldHideRootClock(RootClockMode.HOME, true, false))
     }
 
     @Test
     fun clockIsRestoredWhenLauncherIsNoLongerResumed() {
-        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.LAUNCHER))
-        assertFalse(shouldHideRootClock(true, false, true, RootClockScope.HOME))
+        assertFalse(shouldHideRootClock(RootClockMode.LAUNCHER, false, true))
+        assertFalse(shouldHideRootClock(RootClockMode.HOME, false, true))
     }
 
     @Test

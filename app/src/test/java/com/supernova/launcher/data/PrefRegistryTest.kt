@@ -47,31 +47,33 @@ class PrefRegistryTest {
     }
 
     @Test
-    fun `hide clock is disabled by default`() {
-        assertFalse(LauncherPrefs().rootHideClock)
+    fun `clock mode defaults to no hide`() {
+        assertEquals(RootClockMode.NO_HIDE, LauncherPrefs().rootClockMode)
         assertFalse(LauncherPrefs().rootClockAddedToBlacklist)
     }
 
     @Test
-    fun `root clock enabled state and scope survive a store round trip`() {
-        val stored = mutablePreferencesOf(
-            Pref.rootHideClock.key to true,
-            Pref.rootClockScope.key to RootClockScope.HOME
-                .name
+    fun `legacy clock settings migrate to one mode`() {
+        val legacyHome = mutablePreferencesOf(
+            booleanPreferencesKey("root_hide_clock") to true,
+            stringPreferencesKey("root_clock_scope") to "HOME"
         )
-        val read = LauncherPreferences.decode(stored)
-        assertTrue(read.rootHideClock)
-        assertEquals(RootClockScope.HOME, read.rootClockScope)
+        val home = LauncherPreferences.decode(legacyHome)
+        assertEquals(RootClockMode.HOME, home.rootClockMode)
 
-        val written = mutablePreferencesOf().also { LauncherPreferences.writeAll(it, read) }
-        assertEquals(true, written[Pref.rootHideClock.key])
-        assertEquals(RootClockScope.HOME.name, written[Pref.rootClockScope.key])
+        val written = mutablePreferencesOf().also { LauncherPreferences.writeAll(it, home) }
+        assertEquals(RootClockMode.HOME.name, written[Pref.rootClockMode.key])
 
-        val disabled = LauncherPreferences.decode(
-            mutablePreferencesOf(Pref.rootHideClock.key to false, Pref.rootClockScope.key to RootClockScope.HOME.name)
+        val legacyLauncher = mutablePreferencesOf(
+            booleanPreferencesKey("root_hide_clock") to true
         )
-        assertFalse(disabled.rootHideClock)
-        assertEquals(RootClockScope.HOME, disabled.rootClockScope)
+        assertEquals(RootClockMode.LAUNCHER, LauncherPreferences.decode(legacyLauncher).rootClockMode)
+
+        val legacyDisabled = mutablePreferencesOf(
+            booleanPreferencesKey("root_hide_clock") to false,
+            stringPreferencesKey("root_clock_scope") to "HOME"
+        )
+        assertEquals(RootClockMode.NO_HIDE, LauncherPreferences.decode(legacyDisabled).rootClockMode)
     }
 
     @Test

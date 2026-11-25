@@ -71,7 +71,7 @@ import com.supernova.launcher.data.FolderToDrawer
 import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.Pref
-import com.supernova.launcher.data.RootClockScope
+import com.supernova.launcher.data.RootClockMode
 import com.supernova.launcher.ui.settings.isRootClockHomePage
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LARGE_ICON_SPAN
@@ -1113,12 +1113,11 @@ class LauncherActivity :
     private fun rootClockTargetSnapshot(state: LauncherUiState): RootClockTargetSnapshot {
         val resumed = rootClockActivityResumed
         val prefs = state.prefs
-        val homeSurface = if (prefs.rootClockScope == RootClockScope.HOME) isHomeSurfaceActive() else true
+        val homeSurface = if (prefs.rootClockMode == RootClockMode.HOME) isHomeSurfaceActive() else true
         val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
-            prefs.rootHideClock,
+            prefs.rootClockMode,
             resumed,
-            homeSurface,
-            prefs.rootClockScope
+            homeSurface
         )
         return RootClockTargetSnapshot(target, resumed, homeSurface)
     }

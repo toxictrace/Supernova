@@ -336,8 +336,7 @@ object Pref {
     val animationSpeed = choice("animation_speed", AnimationSpeed.entries)
     val launchAnimation = choice("launch_animation", LaunchAnimation.entries)
     val hideStatusBar = bool("hide_status_bar")
-    val rootHideClock = bool("root_hide_clock")
-    val rootClockScope = choice("root_clock_scope", RootClockScope.entries)
+    val rootClockMode = choice("root_clock_mode", RootClockMode.entries)
     val rootClockAddedToBlacklist = bool("root_clock_added_to_blacklist")
     val darkStatusIcons = choice("dark_status_icons", StatusBarIcons.entries)
     val transparentNav = bool("transparent_nav")
@@ -388,10 +387,20 @@ object PrefStoreFormat {
         // Only the fields the store holds: the rest keep their defaults.
         override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
             while (++index < descriptor.elementsCount) {
-                current = Pref.forField(descriptor.getElementName(index))?.stored(values) ?: continue
+                val field = descriptor.getElementName(index)
+                val stored = Pref.forField(field)?.stored(values)
+                current = stored ?: (if (field == "rootClockMode") legacyRootClockMode() else null) ?: continue
                 return index
             }
             return CompositeDecoder.DECODE_DONE
+        }
+
+        private fun legacyRootClockMode(): String? {
+            val enabled = values[booleanPreferencesKey("root_hide_clock")]
+            val scope = values[stringPreferencesKey("root_clock_scope")]
+            if (enabled == null && scope == null) return null
+            if (enabled != true) return RootClockMode.NO_HIDE.name
+            return if (scope == "HOME") RootClockMode.HOME.name else RootClockMode.LAUNCHER.name
         }
 
         override fun decodeValue(): Any = checkNotNull(current)

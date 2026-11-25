@@ -39,6 +39,7 @@ import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.LockMethod
 import com.supernova.launcher.data.Pref
+import com.supernova.launcher.data.RootClockMode
 import com.supernova.launcher.data.TabFolders
 import com.supernova.launcher.databinding.ActivitySettingsBinding
 import com.supernova.launcher.databinding.DialogCustomShapeBinding
@@ -631,14 +632,9 @@ class SettingsActivity : AppCompatActivity() {
                 )
             },
             openSection = { title -> navigateTo(title, 0) },
-            onRootClockScopeChanged = { scope ->
+            onRootClockModeChanged = { mode ->
                 lifecycleScope.launch {
-                    viewModel.setAndWait(Pref.rootClockScope, scope)
-                }
-            },
-            onRootClockChanged = { hidden ->
-                lifecycleScope.launch {
-                    if (hidden) {
+                    if (mode != RootClockMode.NO_HIDE) {
                         val granted = withContext(Dispatchers.IO) {
                             com.supernova.launcher.ui.settings.RootStatusBarClock.hasRoot()
                         }
@@ -647,12 +643,8 @@ class SettingsActivity : AppCompatActivity() {
                             render()
                             return@launch
                         }
-                        viewModel.setAndWait(Pref.rootHideClock, true)
-                    } else {
-                        // LauncherActivity is the sole owner of SystemUI clock writes.
-                        // It restores the clock after SettingsActivity returns.
-                        viewModel.setAndWait(Pref.rootHideClock, false)
                     }
+                    viewModel.setAndWait(Pref.rootClockMode, mode)
                 }
             }
         )
