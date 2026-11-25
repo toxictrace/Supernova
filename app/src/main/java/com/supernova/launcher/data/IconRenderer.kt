@@ -300,48 +300,62 @@ class IconRenderer(context: Context) {
         shapePath: Path?,
         glass: IconGlass
     ): Path? {
-        decoration?.back?.let { back ->
-            back.setBounds(0, 0, iconSizePx, iconSizePx)
-            back.draw(canvas)
-        }
-
-        val scale = decoration?.scale?.takeIf { it > 0f } ?: 1f
-        // A pack's back plate is the pack's look, so its icons keep it.
-        val glassMask = if (glass != IconGlass.OFF && decoration?.back == null) {
-            val mask = glassShape(source, shapePath)
-            // The platform draws its layers at its own bleed; a chosen shape
-            // overfills as drawShapedBase does.
-            val bleed = if (shapePath != null) ADAPTIVE_BLEED else PLATFORM_BLEED
-            glassPainter.drawIcon(canvas, source, mask, glass, bleed)
-            mask
+        // The chosen shape belongs to the complete icon, including the pack's
+        // back, mask and upon. Clipping only the app drawable left iconback
+        // square, making missing pack icons appear not to follow the shape.
+        val decorationClip = if (decoration != null && shapePath != null) {
+            canvas.save().also { canvas.clipPath(shapePath) }
         } else {
             null
         }
-        if (glassMask == null && shapePath != null) {
-            canvas.save()
-            canvas.clipPath(shapePath)
-            drawShapedBase(canvas, source, scale, hasBack = decoration?.back != null)
-            canvas.restore()
-        } else if (glassMask == null) {
-            val hasBack = decoration?.back != null
-            // A legacy icon drawn as it is: Normalize icon size can shrink it.
-            val legacyFraction = if (hasBack || source is AdaptiveIconDrawable) null else asIsFraction(source)
-            drawBase(canvas, source, scale, hasBack, legacyFraction)
-        }
 
-        decoration?.mask?.let { mask ->
-            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+        try {
+            decoration?.back?.let { back ->
+                back.setBounds(0, 0, iconSizePx, iconSizePx)
+                back.draw(canvas)
             }
-            val maskBitmap = drawableToBitmap(mask)
-            canvas.drawBitmap(maskBitmap, null, android.graphics.Rect(0, 0, iconSizePx, iconSizePx), maskPaint)
-        }
 
-        decoration?.upon?.let { upon ->
-            upon.setBounds(0, 0, iconSizePx, iconSizePx)
-            upon.draw(canvas)
+            val scale = decoration?.scale?.takeIf { it > 0f } ?: 1f
+            // A pack's back plate is part of the composed icon and is clipped
+            // with the same selected shape as the app drawable.
+            val glassMask = if (glass != IconGlass.OFF && decoration?.back == null) {
+                val mask = glassShape(source, shapePath)
+                // The platform draws its layers at its own bleed; a chosen shape
+                // overfills as drawShapedBase does.
+                val bleed = if (shapePath != null) ADAPTIVE_BLEED else PLATFORM_BLEED
+                glassPainter.drawIcon(canvas, source, mask, glass, bleed)
+                mask
+            } else {
+                null
+            }
+            if (glassMask == null && shapePath != null) {
+                canvas.save()
+                canvas.clipPath(shapePath)
+                drawShapedBase(canvas, source, scale, hasBack = decoration?.back != null)
+                canvas.restore()
+            } else if (glassMask == null) {
+                val hasBack = decoration?.back != null
+                // A legacy icon drawn as it is: Normalize icon size can shrink it.
+                val legacyFraction = if (hasBack || source is AdaptiveIconDrawable) null else asIsFraction(source)
+                drawBase(canvas, source, scale, hasBack, legacyFraction)
+            }
+
+            decoration?.mask?.let { mask ->
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                }
+                val maskBitmap = drawableToBitmap(mask)
+                canvas.drawBitmap(maskBitmap, null, android.graphics.Rect(0, 0, iconSizePx, iconSizePx), maskPaint)
+            }
+
+            decoration?.upon?.let { upon ->
+                upon.setBounds(0, 0, iconSizePx, iconSizePx)
+                upon.draw(canvas)
+            }
+            return glassMask
+        } finally {
+            decorationClip?.let(canvas::restoreToCount)
         }
-        return glassMask
     }
 
     // A neutral plate - rounded, or cut to a chosen shape - with the icon
