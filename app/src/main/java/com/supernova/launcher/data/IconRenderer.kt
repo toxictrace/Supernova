@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Matrix
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -331,7 +332,7 @@ class IconRenderer(context: Context) {
             if (glassMask == null && shapePath != null) {
                 canvas.save()
                 canvas.clipPath(shapePath)
-                drawShapedBase(canvas, source, scale, hasBack = decoration?.back != null)
+                drawShapedBase(canvas, source, scale, hasBack = decoration?.back != null, shapePath = shapePath)
                 canvas.restore()
             } else if (glassMask == null) {
                 val hasBack = decoration?.back != null
@@ -485,7 +486,13 @@ class IconRenderer(context: Context) {
         source.draw(canvas)
     }
 
-    private fun drawShapedBase(canvas: Canvas, source: Drawable, packScale: Float, hasBack: Boolean) {
+    private fun drawShapedBase(
+        canvas: Canvas,
+        source: Drawable,
+        packScale: Float,
+        hasBack: Boolean,
+        shapePath: Path
+    ) {
         if (source is AdaptiveIconDrawable) {
             // Draw the adaptive layers directly so our shape replaces the
             // platform mask instead of compounding with it.
@@ -496,7 +503,21 @@ class IconRenderer(context: Context) {
             return
         }
         if (hasBack) {
-            drawBase(canvas, source, packScale, hasBack = true)
+            // The pack scales the app artwork inside iconback. Scale the
+            // selected shape by the same amount, or the smaller artwork keeps
+            // its original outline while only the background changes shape.
+            val fraction = packScale.coerceIn(0.3f, 1f)
+            val matrix = Matrix().apply {
+                setScale(fraction, fraction, iconSizePx / 2f, iconSizePx / 2f)
+            }
+            val artworkShape = Path(shapePath).apply { transform(matrix) }
+            val save = canvas.save()
+            try {
+                canvas.clipPath(artworkShape)
+                drawBase(canvas, source, fraction, hasBack = true)
+            } finally {
+                canvas.restoreToCount(save)
+            }
             return
         }
         // Legacy icons rarely fill their canvas; scale up so the shape reads as
