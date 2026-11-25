@@ -44,3 +44,11 @@ class RootStatusBarClockTest {
         assertEquals("headset,rotate", IconBlacklist.removeClock("clock,headset,rotate"))
     }
 }
+
+    @Test
+    fun `only a clock entry owned by this feature is restored`() {
+        assertTrue(shouldRestoreClock(owned = true, clockPresent = true))
+        assertFalse(shouldRestoreClock(owned = false, clockPresent = true))
+        assertFalse(shouldRestoreClock(owned = true, clockPresent = false))
+        assertFalse(shouldRestoreClock(owned = false, clockPresent = false))
+    }
