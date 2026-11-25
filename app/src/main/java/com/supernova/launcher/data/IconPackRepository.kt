@@ -37,9 +37,9 @@ class IconPackRepository(private val context: Context) {
     private var calendarMap: Map<String, String> = emptyMap()
     private var packageFallback: Map<String, String> = emptyMap()
     private var packResources: Resources? = null
-    private var maskDrawable: Drawable? = null
+    private var maskDrawables: List<Drawable> = emptyList()
     private var backDrawables: List<Drawable> = emptyList()
-    private var uponDrawable: Drawable? = null
+    private var uponDrawables: List<Drawable> = emptyList()
     private var iconScale: Float = 1f
 
     // Dark or light, as the launcher is: day/night packs ship their dark
@@ -106,8 +106,8 @@ class IconPackRepository(private val context: Context) {
     // The pack's plates, drawn from its resources as they now are.
     private fun loadDecoration() {
         backDrawables = backNames.mapNotNull { drawableByName(it) }
-        maskDrawable = maskName?.let { drawableByName(it) }
-        uponDrawable = uponName?.let { drawableByName(it) }
+        maskDrawables = maskNames.mapNotNull { drawableByName(it) }
+        uponDrawables = uponNames.mapNotNull { drawableByName(it) }
     }
 
     // What the loaded pack's icons were drawn under, for the disk cache's
@@ -183,8 +183,8 @@ class IconPackRepository(private val context: Context) {
         val byPackage = mutableMapOf<String, String>()
         val calendars = mutableMapOf<String, String>()
         val backs = mutableListOf<String>()
-        var mask: String? = null
-        var upon: String? = null
+        val masks = mutableListOf<String>()
+        val upons = mutableListOf<String>()
 
         readAppFilter(resources, packageName) { parser -> runLogged("parse icon pack $packageName") {
             while (parser.next() != XmlPullParser.END_DOCUMENT) {
@@ -207,9 +207,9 @@ class IconPackRepository(private val context: Context) {
                             normalizeComponent(component)?.let { calendars[it] = prefix }
                         }
                     }
-                    "iconback" -> parser.getAttributeValue(null, "img1")?.let { backs.add(it) }
-                    "iconmask" -> mask = parser.getAttributeValue(null, "img1")
-                    "iconupon" -> upon = parser.getAttributeValue(null, "img1")
+                    "iconback" -> backs += imageVariants(parser)
+                    "iconmask" -> masks += imageVariants(parser)
+                    "iconupon" -> upons += imageVariants(parser)
                     "scale" -> iconScale = parser.getAttributeValue(null, "factor")?.toFloatOrNull() ?: 1f
                 }
             }
@@ -219,13 +219,13 @@ class IconPackRepository(private val context: Context) {
         packageFallback = byPackage
         calendarMap = calendars
         backNames = backs
-        maskName = mask
-        uponName = upon
+        maskNames = masks
+        uponNames = upons
         loadedIds = PackDrawableIds.read(resources, packageName, map.values.firstOrNull())
         decodeDensity = bitmapDensity(map.values, resources, packageName)
         loadDecoration()
         followsNight = declaresNight(packageName) ||
-            (backDrawables + listOfNotNull(maskDrawable, uponDrawable)).any(::changesByNight) ||
+            (backDrawables + maskDrawables + uponDrawables).any(::changesByNight) ||
             sampleChangesByNight(map.values, resources)
     }
 
@@ -235,25 +235,34 @@ class IconPackRepository(private val context: Context) {
         packageFallback = emptyMap()
         calendarMap = emptyMap()
         packResources = null
-        maskDrawable = null
+        maskDrawables = emptyList()
         backDrawables = emptyList()
-        uponDrawable = null
+        uponDrawables = emptyList()
         backNames = emptyList()
-        maskName = null
-        uponName = null
+        maskNames = emptyList()
+        uponNames = emptyList()
         followsNight = false
         loadedIds = null
         decodeDensity = 0
         iconScale = 1f
     }
 
+    // The ADW format numbers image variants: img1, img2, img3, etc.
+    // Sort by the numeric suffix because XML attribute order is not guaranteed.
+    private fun imageVariants(parser: XmlPullParser): List<String> =
+        (0 until parser.attributeCount).mapNotNull { index ->
+            val name = parser.getAttributeName(index)
+            val number = name.removePrefix("img").toIntOrNull() ?: return@mapNotNull null
+            number to parser.getAttributeValue(index)
+        }.sortedBy { it.first }.map { it.second }
+
     // The loaded pack's drawables by name (PackDrawableIds): a lookup per
     // icon, where asking the pack by name cost a fifth of a millisecond.
     private var loadedIds: Map<String, Int>? = null
 
     private var backNames: List<String> = emptyList()
-    private var maskName: String? = null
-    private var uponName: String? = null
+    private var maskNames: List<String> = emptyList()
+    private var uponNames: List<String> = emptyList()
 
     // The flag day/night packs put in their manifest (on the application or
     // the activity launchers find them by). Not every pack has it.
@@ -356,16 +365,16 @@ class IconPackRepository(private val context: Context) {
     // first back, the way this always behaved.
     fun decoration(component: String? = null): IconPackDecoration? {
         if (loadedPackage.isNullOrBlank()) return null
-        if (backDrawables.isEmpty() && maskDrawable == null && uponDrawable == null) return null
-        val back = when {
-            backDrawables.isEmpty() -> null
-            component == null -> backDrawables.first()
-            else -> backDrawables[backIndex(component, backDrawables.size)]
+        if (backDrawables.isEmpty() && maskDrawables.isEmpty() && uponDrawables.isEmpty()) return null
+        fun selected(drawables: List<Drawable>): Drawable? = when {
+            drawables.isEmpty() -> null
+            component == null -> drawables.first()
+            else -> drawables[backIndex(component, drawables.size)]
         }
         return IconPackDecoration(
-            back = back,
-            mask = maskDrawable,
-            upon = uponDrawable,
+            back = selected(backDrawables),
+            mask = selected(maskDrawables),
+            upon = selected(uponDrawables),
             scale = iconScale
         )
     }
