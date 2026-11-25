@@ -40,8 +40,10 @@ internal object RootStatusBarClock {
             return isClockHidden() == true
         }
 
-        if (!actuallyHidden) {
-            preferences.set(Pref.rootClockAddedToBlacklist, false)
+        if (!shouldRestoreClock(owned, actuallyHidden)) {
+            if (owned && !actuallyHidden) {
+                preferences.set(Pref.rootClockAddedToBlacklist, false)
+            }
             return true
         }
 
@@ -108,3 +110,6 @@ internal object IconBlacklist {
             raw.split(',').map(String::trim).filter(String::isNotEmpty).toSet()
         }
 }
+
+internal fun shouldRestoreClock(owned: Boolean, clockPresent: Boolean): Boolean =
+    owned && clockPresent
