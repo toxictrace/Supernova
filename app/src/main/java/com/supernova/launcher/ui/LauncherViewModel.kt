@@ -98,7 +98,8 @@ class LauncherViewModel(
     val launchGeneration: StateFlow<Int> = launches
 
     // Bumped when the icon pack changes so the workspace redraws cached icons.
-    private val iconGeneration = MutableStateFlow(0)
+    private val iconGenerations = MutableStateFlow(0)
+    val iconGeneration: StateFlow<Int> = iconGenerations
 
     // Rescan requests. The Boolean is "run it now": an icon-config change is
     // one the user is waiting to see, while package callbacks can wait for
@@ -291,7 +292,7 @@ class LauncherViewModel(
                     // follows in the refresh's warm (#288).
                     withContext(Dispatchers.Default) { warmHomeFirst() }
                     requestRefresh(immediate = true)
-                    iconGeneration.value += 1
+                    iconGenerations.value += 1
                 }
             }
         }
@@ -308,7 +309,7 @@ class LauncherViewModel(
             preferences.iconCacheClearsFlow.drop(1).collect {
                 withContext(Dispatchers.Default) { catalog.clearIconCache() }
                 requestRefresh(immediate = true)
-                iconGeneration.value += 1
+                iconGenerations.value += 1
             }
         }
         viewModelScope.launch {
@@ -331,7 +332,7 @@ class LauncherViewModel(
                 val firstConfig = !overridesApplied
                 overridesApplied = true
                 signalConfigAppliedIfReady()
-                if (!firstConfig) iconGeneration.value += 1
+                if (!firstConfig) iconGenerations.value += 1
             }
         }
         appChangeListener = { change ->
@@ -391,7 +392,7 @@ class LauncherViewModel(
         viewModelScope.launch {
             delay(STARTUP_VALVE_MS)
             withTimeoutOrNull(STARTUP_VALVE_GIVE_UP_MS) { configApplied.await() }
-            iconGeneration.compareAndSet(0, 1)
+            iconGenerations.compareAndSet(0, 1)
         }
     }
 
@@ -450,7 +451,7 @@ class LauncherViewModel(
         // on it: it costs ~350-750 ms on a 58-app device, and the home screen
         // needs a handful of icons it can already name from the model.
         catalog.warmIcons(firstFrameApps(repository.modelFlow.first()))
-        iconGeneration.compareAndSet(0, 1)
+        iconGenerations.compareAndSet(0, 1)
 
         // The list as the last run left it, so a drawer opened now has its
         // apps while they are listed afresh: with a few hundred apps that
@@ -585,7 +586,7 @@ class LauncherViewModel(
         // render lock keeps this safe alongside main-thread misses. The home
         // screen's icons first, after a redraw (#288); all hits otherwise.
         catalog.warmIcons(homeApps(repository.modelFlow.first()) + apps)
-        if (stale) iconGeneration.value += 1
+        if (stale) iconGenerations.value += 1
     }
 
     // An app was updated since the last scan: its icon may have changed.
@@ -632,7 +633,7 @@ class LauncherViewModel(
         viewModelScope.launch(Dispatchers.Default) {
             if (catalog.applyDensity(densityDpi)) {
                 requestRefresh(immediate = true)
-                iconGeneration.value += 1
+                iconGenerations.value += 1
             }
         }
     }
@@ -671,7 +672,7 @@ class LauncherViewModel(
                     .also { if (it) warmHomeFirst() }
             }
             if (!evicted) return@launch
-            iconGeneration.value += 1
+            iconGenerations.value += 1
             // Nothing else warms after a theme flip: the drawer drew its
             // icons one by one as it was opened.
             withContext(Dispatchers.Default) {

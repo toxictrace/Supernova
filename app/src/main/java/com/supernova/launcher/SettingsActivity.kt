@@ -739,6 +739,9 @@ class SettingsActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.iconGeneration.collect { previews.refresh() }
+                }
                 viewModel.state.collect { state ->
                     // The Cards section's rows ARE the cards: a save, delete
                     // or pin from the editor rebuilds the catalogue so the

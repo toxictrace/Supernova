@@ -516,6 +516,14 @@ object SettingsCatalogue {
                             RootClockMode.LAUNCHER -> R.string.root_clock_scope_launcher
                             RootClockMode.HOME -> R.string.root_clock_scope_home
                         }
+                    },
+                    subtitle = { prefs ->
+                        val mode = when (prefs.rootClockMode) {
+                            RootClockMode.NO_HIDE -> R.string.root_clock_mode_no_hide
+                            RootClockMode.LAUNCHER -> R.string.root_clock_scope_launcher
+                            RootClockMode.HOME -> R.string.root_clock_scope_home
+                        }
+                        "${context.getString(mode)}\n${context.getString(R.string.root_hide_clock_summary)}"
                     }
                 ) { actions.onRootClockModeChanged(it) },
                 rows.choice(

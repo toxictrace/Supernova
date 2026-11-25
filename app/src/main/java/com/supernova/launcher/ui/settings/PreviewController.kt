@@ -18,9 +18,20 @@ class PreviewController(private val viewModel: LauncherViewModel) {
     var latestPrefs = LauncherPrefs()
 
     private var attached: SettingsPreviewView? = null
+    private var attachedKind: PreviewKind? = null
 
     fun attach(view: SettingsPreviewView, kind: PreviewKind) {
         attached = view
+        attachedKind = kind
+        view.bind(kind, latestPrefs, viewModel)
+    }
+
+    // Icon settings invalidate AppCatalog asynchronously after the prefs
+    // emission. Rebind only when that invalidation has completed.
+    fun refresh() {
+        if (isTracking) return
+        val view = attached ?: return
+        val kind = attachedKind ?: return
         view.bind(kind, latestPrefs, viewModel)
     }
 
