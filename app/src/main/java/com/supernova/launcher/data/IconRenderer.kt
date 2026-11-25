@@ -9,6 +9,7 @@ import android.graphics.Matrix
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 import android.graphics.Region
 import android.graphics.drawable.AdaptiveIconDrawable
@@ -248,7 +249,9 @@ class IconRenderer(context: Context) {
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
 
-        val radius = largestInscribedCircleRadius(shapePath, size)
+        val radius = (
+            largestInscribedCircleRadius(shapePath, size) * MISSING_ICON_CIRCLE_FRACTION
+        ).roundToInt().coerceAtLeast(1)
         val circleSize = radius * 2
         val circle = Path().apply {
             addCircle(size / 2f, size / 2f, radius.toFloat(), Path.Direction.CW)
@@ -272,9 +275,16 @@ class IconRenderer(context: Context) {
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
-            if (back != null) {
-                back.setBounds(0, 0, size, size)
-                back.draw(this)
+            val plate = back?.mutate()
+            val previousFilter = plate?.colorFilter
+            if (plate != null) {
+                try {
+                    plate.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY)
+                    plate.setBounds(0, 0, size, size)
+                    plate.draw(this)
+                } finally {
+                    plate.colorFilter = previousFilter
+                }
             } else {
                 drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
             }
@@ -851,6 +861,7 @@ class IconRenderer(context: Context) {
         // White like the platform's default adaptive plate; content sits at
         // roughly the adaptive foreground safe-zone fraction.
         private const val PLATE_COLOR = 0xFFF3F3F3.toInt()
+        private const val MISSING_ICON_CIRCLE_FRACTION = 0.84f
         private const val PLATE_RADIUS_FRACTION = 0.25f
         private const val PLATE_CONTENT = 0.66f
         // On a plate cut to the icon's shape the logo is the whole icon, not a
