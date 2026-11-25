@@ -81,6 +81,7 @@ class SettingsPreviewView @JvmOverloads constructor(
     // a tick can move radius, shadow and the name without rebuilding.
     private var folderCard: View? = null
     private var folderCardBg: android.graphics.drawable.Drawable? = null
+    private var folderBackdropView: View? = null
     private var folderTitleView: TextView? = null
     // Search preview: the result rows keyed by the toggle that owns them, so a
     // tick can show and hide them without rebuilding the window.
@@ -140,6 +141,7 @@ class SettingsPreviewView @JvmOverloads constructor(
         surfaceBg = null
         folderCard = null
         folderCardBg = null
+        folderBackdropView = null
         folderTitleView = null
         searchRows.clear()
         searchFillsScreen = false
@@ -340,6 +342,11 @@ class SettingsPreviewView @JvmOverloads constructor(
         }
     }
 
+    private fun folderBackdropColor(prefs: LauncherPrefs): Int {
+        val alpha = (prefs.folderBackdropOpacity.coerceIn(0f, 0.9f) * OPAQUE).toInt()
+        return android.graphics.Color.argb(alpha, 0, 0, 0)
+    }
+
     private fun tickFolder(prefs: LauncherPrefs) {
         val scale = if (prefs.folderMatchDesktop) prefs.iconScale else prefs.folderIconScale
         // The cells grow with the icon size as the window's do.
@@ -356,6 +363,8 @@ class SettingsPreviewView @JvmOverloads constructor(
         folderNameRow?.visibility = if (prefs.folderShowName) VISIBLE else GONE
         folderCountView?.visibility = if (prefs.folderShowCount) VISIBLE else GONE
         folderCard?.elevation = if (prefs.folderShadow) dp(FOLDER_ELEVATION_DP).toFloat() else 0f
+        folderCardBg?.alpha = ((1f - prefs.folderSurfaceTransparency.coerceIn(0f, 0.9f)) * OPAQUE).toInt()
+        folderBackdropView?.setBackgroundColor(folderBackdropColor(prefs))
         // Radius rides the style config, so the slider lands here too.
         val radius = StyleConfig.decode(prefs.styleConfig)
             .styleFor(SurfaceId.FOLDER).cornerRadii?.firstOrNull()
@@ -817,6 +826,10 @@ class SettingsPreviewView @JvmOverloads constructor(
     // setting in the section - icon appearance, window chrome, member grid -
     // shows up here.
     private fun buildFolder(prefs: LauncherPrefs, viewModel: LauncherViewModel) {
+        folderBackdropView = View(context).apply {
+            setBackgroundColor(folderBackdropColor(prefs))
+        }
+        addView(folderBackdropView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         val resolved = Styles.resolve(context, prefs).of(SurfaceId.FOLDER)
         surfaceRgb = resolved.surface and 0xFFFFFF
         styleAlpha = StyleConfig.decode(prefs.styleConfig).styleFor(SurfaceId.FOLDER).alpha
@@ -948,7 +961,7 @@ class SettingsPreviewView @JvmOverloads constructor(
         // IMMERSIVE fills the screen over a scrim; the stage shows that rather
         // than pretending the card just got wider.
         if (!immersive) return FitWidthFrame(context).apply { addView(card) }
-        val stage = FrameLayout(context).apply { setBackgroundColor(IMMERSIVE_STAGE_SCRIM) }
+        val stage = FrameLayout(context)
         stage.addView(
             card,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
@@ -1757,7 +1770,6 @@ class SettingsPreviewView @JvmOverloads constructor(
         const val FOLDER_ELEVATION_DP = 8
         // bg_folder's built-in radius, the fallback the real window uses.
         const val DEFAULT_FOLDER_RADIUS_DP = 24f
-        const val IMMERSIVE_STAGE_SCRIM = -0x4D000000
         const val SEARCH_DEMO_COLS = 5
         // The Home strip's height and the range of
         // desktop columns it mirrors, one icon per column.
