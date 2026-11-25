@@ -874,6 +874,7 @@ object SettingsCatalogue {
                     get = { it.drawerFrequentRowPaddingH },
                     set = { viewModel.set(Pref.drawerFrequentRowPaddingH, it) },
                     display = { context.getString(R.string.padding_dp_value, it) },
+                    preview = { p, v -> p.copy(drawerFrequentRowPaddingH = v) }
                 ).hiddenWhen { needsOn(R.string.drawer_frequent_row, !it.drawerFrequentRow) }.nested(),
                 SettingItem.Row(
                     R.string.drawer_frequent_row_match_drawer,

@@ -98,6 +98,8 @@ class SettingsPreviewView @JvmOverloads constructor(
     // App drawer preview: the grid row or list rows the padding bars move,
     // and the list's icons, which have a box of their own.
     private var drawerItems: View? = null
+    // The recent-apps row above the drawer's list, as on the real drawer.
+    private var drawerFrequentRow: com.supernova.launcher.ui.FrequentAppsRowView? = null
     // The drawer's tab bar, null without one, and whether it sits below the
     // list: the vertical padding goes outside it (applyDrawerPadding).
     private var drawerTabsView: View? = null
@@ -148,6 +150,7 @@ class SettingsPreviewView @JvmOverloads constructor(
         drawerFieldPill = null
         drawerFieldIcon = null
         drawerItems = null
+        drawerFrequentRow = null
         drawerTabsView = null
         listIconViews.clear()
         homeRow = null
@@ -385,6 +388,11 @@ class SettingsPreviewView @JvmOverloads constructor(
         // The list always names its rows; the switch is the grid's.
         val list = prefs.drawerStyle == com.supernova.launcher.ui.DrawerStyle.VERTICAL_LIST
         styleLabels(prefs, visible = list || prefs.drawerLabels, context = LabelContext.DRAWER)
+        drawerFrequentRow?.apply {
+            visibility = if (prefs.drawerFrequentRow) VISIBLE else GONE
+            val side = dp(prefs.drawerFrequentRowPaddingH)
+            setPadding(side, paddingTop, side, paddingBottom)
+        }
         applyDrawerPadding(prefs)
         styleDrawerField(prefs)
     }
@@ -1265,10 +1273,32 @@ class SettingsPreviewView @JvmOverloads constructor(
         }
         val listFrame = drawerListFrame(prefs, resolved, items)
 
-        // Top to bottom as DrawerController stacks the sheet: the search row
-        // and the tabs at whichever end they are set to, the sort button over
-        // the list. One row of icons only: the top row stays out (it would be
-        // a second row of the same icons).
+        // The recent-apps row uses the same ordering, columns, labels and
+        // horizontal padding as the real drawer's FrequentAppsRowView.
+        val frequentApps = viewModel.recentApps(columns)
+        val catalog = viewModel.appCatalog()
+        val frequentIconBase = if (list) DRAWER_LIST_ICON_DP else ICON_BASE_DP
+        val frequentIconSize = (dp(frequentIconBase) * scale).toInt()
+            .coerceAtMost((screen / columns - dp(8)).coerceAtLeast(1))
+        val frequentRow = com.supernova.launcher.ui.FrequentAppsRowView(context).apply {
+            bindLabeled(
+                frequentApps.map { app ->
+                    com.supernova.launcher.ui.FrequentAppsRowView.Entry(app.label, catalog.iconFor(app)) {}
+                },
+                resolved.text,
+                columns,
+                sidePaddingDp = prefs.drawerFrequentRowPaddingH,
+                look = com.supernova.launcher.ui.FrequentAppsRowView.CellLook(frequentIconSize) { label ->
+                    LabelStyler.apply(label, prefs, onWallpaper = false, context = LabelContext.DRAWER)
+                    label.visibility = if (prefs.drawerLabels) VISIBLE else GONE
+                }
+            )
+            visibility = if (prefs.drawerFrequentRow) VISIBLE else GONE
+        }.takeIf { frequentApps.isNotEmpty() }
+        drawerFrequentRow = frequentRow
+
+        // Top to bottom as DrawerController stacks the sheet: search row,
+        // tabs, recent apps, sort controls and the app list.
         val placement = com.supernova.launcher.ui.DrawerBarPlacement.fromConfig(
             SearchBarConfig.decode(prefs.searchBarConfig).drawer
         )
@@ -1283,6 +1313,7 @@ class SettingsPreviewView @JvmOverloads constructor(
         val parts = listOfNotNull(
             searchRow.takeIf { searchTop },
             tabs.takeIf { !tabsBottom },
+            frequentRow,
             sortBar,
             listFrame,
             tabs.takeIf { tabsBottom },
