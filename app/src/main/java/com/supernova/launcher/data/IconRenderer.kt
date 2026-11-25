@@ -12,6 +12,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toDrawable
@@ -222,6 +223,71 @@ class IconRenderer(context: Context) {
         glassPainter.drawEdge(canvas, mask, glass, size, size)
         canvas.drawBitmap(picture, 0f, 0f, null)
         return if (shadow) withShadow(bitmap, mask) else bitmap.toDrawable(resources)
+    }
+
+    // A missing icon-pack entry: the app's own artwork, circularly cropped,
+    // over a plate in the selected shape and the app's own background colour.
+    // Adaptive icons supply that colour in their background layer; legacy icons
+    // use their dominant colour. Pack masks and round-icon restrictions do not apply.
+    fun renderMissingPackIcon(
+        source: Drawable,
+        shape: IconShape,
+        customShape: CustomShapeSpec?,
+        upon: Drawable? = null
+    ): Drawable {
+        val size = iconSizePx
+        val adaptive = source as? AdaptiveIconDrawable
+        val shapePath = shape.pathFor(size.toFloat(), customShape)
+            ?: glassPainter.systemMask(
+                adaptive ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
+                size
+            )
+        val background = adaptive?.background
+        val color = when (background) {
+            is ColorDrawable -> background.color
+            null -> dominantColorOf(source, size)
+            else -> dominantColorOf(background, size) ?: dominantColorOf(source, size)
+        } ?: PLATE_COLOR
+
+        val foreground = adaptive?.foreground ?: source
+        val artwork = createBitmap(size, size)
+        foreground.setBounds(0, 0, size, size)
+        foreground.draw(Canvas(artwork))
+
+        val output = createBitmap(size, size)
+        val canvas = Canvas(output)
+        canvas.drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+
+        val circleSize = (size * MISSING_ICON_CIRCLE_FRACTION).roundToInt().coerceAtLeast(1)
+        val inset = (size - circleSize) / 2
+        val circle = Path().apply {
+            addCircle(size / 2f, size / 2f, circleSize / 2f, Path.Direction.CW)
+        }
+        canvas.withClip(shapePath) {
+            withClip(circle) {
+                drawBitmap(
+                    artwork,
+                    null,
+                    android.graphics.Rect(inset, inset, inset + circleSize, inset + circleSize),
+                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                )
+            }
+            upon?.let {
+                it.setBounds(0, 0, size, size)
+                it.draw(this)
+            }
+        }
+        artwork.recycle()
+        return if (shadow) withShadow(output) else output.toDrawable(resources)
+    }
+
+    private fun dominantColorOf(source: Drawable, size: Int): Int? {
+        val bitmap = createBitmap(size, size)
+        source.setBounds(0, 0, size, size)
+        source.draw(Canvas(bitmap))
+        val color = DominantColor.of(bitmap)
+        bitmap.recycle()
+        return color
     }
 
     // An app's own icon, left as it comes. A legacy one that is a tile of its
@@ -719,6 +785,7 @@ class IconRenderer(context: Context) {
         // glyph in a safe zone: about 68% of the shape with the uniform size,
         // which a square logo's corners still clear in a circle.
         private const val SHAPED_PLATE_CONTENT = 0.94f
+        private const val MISSING_ICON_CIRCLE_FRACTION = 0.82f
         private const val SHADOW_BLUR_DP = 2f
         private const val SHADOW_OFFSET_Y_DP = 1f
         private const val SHADOW_COLOR = 0x4D000000

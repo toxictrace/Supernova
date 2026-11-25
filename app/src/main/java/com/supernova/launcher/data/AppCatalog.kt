@@ -367,6 +367,7 @@ class AppCatalog(
         var finishedArt = false
         // The app's own icon, left as it comes: no pack, no pick in Edit.
         var ownIcon = false
+        var missingPackIcon = false
         if (custom != null) {
             // Another app's icon takes the themed look as the app's own
             // would: with Themed icons on, or Themed picked for this app.
@@ -385,6 +386,7 @@ class AppCatalog(
             val mono = monochromeThemedIcon(app.packageName, app.className, user, force = true)
             source = mono ?: appOwnIcon(app.packageName, app.className, user) ?: return null
             decoration = if (mono == null) iconPacks.decoration(packComponent) else null
+            missingPackIcon = mono == null && iconPacks.loadedPack() != null
         } else {
             // A themed icon from the active pack already looks final; only
             // unthemed apps get the pack's back/mask/upon treatment.
@@ -397,6 +399,7 @@ class AppCatalog(
             val mono = own?.let { themedIcon(it, force = false) }
             source = themed ?: mono ?: own ?: return null
             decoration = if (themed == null && mono == null) iconPacks.decoration(packComponent) else null
+            missingPackIcon = themed == null && mono == null && iconPacks.loadedPack() != null
             finishedArt = themed != null
             ownIcon = themed == null && mono == null && decoration == null
         }
@@ -404,18 +407,22 @@ class AppCatalog(
         // ORIGINAL is the app's own icon, glass and all left off.
         val glass = if (variant == "ORIGINAL" || finishedArt) IconGlass.OFF else iconRenderer.glass
         return runLogged("render icon") {
-            val rendered = when {
-                gallery != null -> pickedPicture(gallery.bitmap, effectiveShape)
-                ownIcon -> iconRenderer.renderOwnIcon(source, effectiveShape, customShapeSpec, glass)
-                finishedArt -> iconRenderer.renderPackArt(source, effectiveShape, customShapeSpec)
-                else -> iconRenderer.render(source, decoration, effectiveShape, customShapeSpec, glass)
+            if (missingPackIcon) {
+                iconRenderer.renderMissingPackIcon(source, effectiveShape, customShapeSpec, decoration?.upon)
+            } else {
+                val rendered = when {
+                    gallery != null -> pickedPicture(gallery.bitmap, effectiveShape)
+                    ownIcon -> iconRenderer.renderOwnIcon(source, effectiveShape, customShapeSpec, glass)
+                    finishedArt -> iconRenderer.renderPackArt(source, effectiveShape, customShapeSpec)
+                    else -> iconRenderer.render(source, decoration, effectiveShape, customShapeSpec, glass)
+                }
+                iconRenderer.applyFinalShape(
+                    rendered,
+                    effectiveShape,
+                    customShapeSpec,
+                    if (gallery != null) IconGlass.OFF else glass
+                )
             }
-            iconRenderer.applyFinalShape(
-                rendered,
-                effectiveShape,
-                customShapeSpec,
-                if (gallery != null) IconGlass.OFF else glass
-            )
         }.getOrNull()
     }
 
