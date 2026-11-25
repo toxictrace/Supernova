@@ -953,7 +953,7 @@ class AppCatalog(
     companion object {
         // Bumped when a render changes how an icon looks for the same
         // settings, so the disk cache starts over.
-        const val DISK_FORMAT = 6
+        const val DISK_FORMAT = 7
 
         // Marks a Large icon's copy in a cache key.
         const val LARGE_KEY = "^large"
