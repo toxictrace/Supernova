@@ -330,9 +330,7 @@ class IconRenderer(context: Context) {
         shapePath: Path?,
         glass: IconGlass
     ): Path? {
-        // The chosen shape belongs to the complete icon, including the pack's
-        // back, mask and upon. Clipping only the app drawable left iconback
-        // square, making missing pack icons appear not to follow the shape.
+        // The selected shape clips the complete fallback composition.
         val decorationClip = if (decoration != null && shapePath != null) {
             canvas.save().also { canvas.clipPath(shapePath) }
         } else {
@@ -345,37 +343,71 @@ class IconRenderer(context: Context) {
                 back.draw(canvas)
             }
 
-            val scale = decoration?.scale?.takeIf { it > 0f } ?: 1f
-            // A pack's back plate is part of the composed icon and is clipped
-            // with the same selected shape as the app drawable.
-            val glassMask = if (glass != IconGlass.OFF && decoration?.back == null) {
+            val hasBack = decoration?.back != null
+            val hasPackDecoration = decoration != null
+            val packScale = decoration?.scale?.takeIf { it > 0f } ?: 1f
+
+            val glassMask = if (glass != IconGlass.OFF && !hasBack) {
                 val mask = glassShape(source, shapePath)
-                // The platform draws its layers at its own bleed; a chosen shape
-                // overfills as drawShapedBase does.
                 val bleed = if (shapePath != null) ADAPTIVE_BLEED else PLATFORM_BLEED
                 glassPainter.drawIcon(canvas, source, mask, glass, bleed)
                 mask
             } else {
                 null
             }
-            if (glassMask == null && shapePath != null) {
-                canvas.save()
-                canvas.clipPath(shapePath)
-                drawShapedBase(canvas, source, scale, hasBack = decoration?.back != null, shapePath = shapePath)
-                canvas.restore()
-            } else if (glassMask == null) {
-                val hasBack = decoration?.back != null
-                // A legacy icon drawn as it is: Normalize icon size can shrink it.
-                val legacyFraction = if (hasBack || source is AdaptiveIconDrawable) null else asIsFraction(source)
-                drawBase(canvas, source, scale, hasBack, legacyFraction)
+
+            val drawAppIcon: (Canvas) -> Unit = { target ->
+                if (shapePath != null) {
+                    val save = target.save()
+                    try {
+                        target.clipPath(shapePath)
+                        drawShapedBase(
+                            target,
+                            source,
+                            packScale,
+                            hasBack,
+                            hasPackDecoration,
+                            shapePath
+                        )
+                    } finally {
+                        target.restoreToCount(save)
+                    }
+                } else {
+                    val legacyFraction = if (hasPackDecoration || source is AdaptiveIconDrawable) {
+                        null
+                    } else {
+                        asIsFraction(source)
+                    }
+                    drawBase(target, source, packScale, hasBack, hasPackDecoration, legacyFraction)
+                }
             }
 
-            decoration?.mask?.let { mask ->
-                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            if (glassMask == null) {
+                val iconMask = decoration?.mask
+                if (iconMask == null) {
+                    drawAppIcon(canvas)
+                } else {
+                    // ADW iconmask cuts the app artwork, not the iconback plate.
+                    val iconLayer = createBitmap(iconSizePx, iconSizePx)
+                    try {
+                        val iconLayerCanvas = Canvas(iconLayer)
+                        drawAppIcon(iconLayerCanvas)
+
+                        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                        }
+                        val maskBitmap = drawableToBitmap(iconMask)
+                        iconLayerCanvas.drawBitmap(
+                            maskBitmap,
+                            null,
+                            android.graphics.Rect(0, 0, iconSizePx, iconSizePx),
+                            maskPaint
+                        )
+                        canvas.drawBitmap(iconLayer, 0f, 0f, null)
+                    } finally {
+                        iconLayer.recycle()
+                    }
                 }
-                val maskBitmap = drawableToBitmap(mask)
-                canvas.drawBitmap(maskBitmap, null, android.graphics.Rect(0, 0, iconSizePx, iconSizePx), maskPaint)
             }
 
             decoration?.upon?.let { upon ->
@@ -500,19 +532,41 @@ class IconRenderer(context: Context) {
         source: Drawable,
         packScale: Float,
         hasBack: Boolean,
+        hasPackDecoration: Boolean,
         legacyFraction: Float? = null
     ) {
-        // Icon packs expect the app icon shrunk to sit inside their background
-        // plate; adaptive icons already carry their own mask.
+        // ADW scale applies to the source artwork whenever fallback metadata exists.
         val fraction = when {
-            hasBack -> packScale.coerceIn(0.3f, 1f)
+            hasPackDecoration -> packScale.coerceIn(0.3f, 1f)
             source is AdaptiveIconDrawable -> 1f
             else -> legacyFraction ?: (1f - (LEGACY_INSET_FRACTION * 2))
         }
         val drawnSize = (iconSizePx * fraction).roundToInt()
         val offset = (iconSizePx - drawnSize) / 2
-        source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
-        source.draw(canvas)
+
+        val adaptive = source as? AdaptiveIconDrawable
+        val drawable = if (hasBack && adaptive != null) {
+            adaptive.foreground ?: return
+        } else {
+            source
+        }
+
+        val save = if (hasBack && adaptive != null) {
+            val mask = Path(glassPainter.systemMask(adaptive, iconSizePx))
+            Matrix().apply {
+                setScale(fraction, fraction, iconSizePx / 2f, iconSizePx / 2f)
+            }.also(mask::transform)
+            canvas.save().also { canvas.clipPath(mask) }
+        } else {
+            -1
+        }
+
+        try {
+            drawable.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
+            drawable.draw(canvas)
+        } finally {
+            if (save >= 0) canvas.restoreToCount(save)
+        }
     }
 
     private fun drawShapedBase(
@@ -520,21 +574,42 @@ class IconRenderer(context: Context) {
         source: Drawable,
         packScale: Float,
         hasBack: Boolean,
+        hasPackDecoration: Boolean,
         shapePath: Path
     ) {
         if (source is AdaptiveIconDrawable) {
-            // Draw the adaptive layers directly so our shape replaces the
-            // platform mask instead of compounding with it.
-            val bleed = (iconSizePx * ADAPTIVE_BLEED).roundToInt()
-            val bounds = android.graphics.Rect(-bleed, -bleed, iconSizePx + bleed, iconSizePx + bleed)
-            source.background?.let { it.bounds = bounds; it.draw(canvas) }
-            source.foreground?.let { it.bounds = bounds; it.draw(canvas) }
+            // A pack back replaces the adaptive background. Keep only its foreground.
+            val fraction = if (hasPackDecoration) packScale.coerceIn(0.3f, 1f) else 1f
+            val drawnSize = (iconSizePx * fraction).roundToInt()
+            val offset = (iconSizePx - drawnSize) / 2
+            val bleed = (drawnSize * ADAPTIVE_BLEED).roundToInt()
+            val bounds = android.graphics.Rect(
+                offset - bleed,
+                offset - bleed,
+                offset + drawnSize + bleed,
+                offset + drawnSize + bleed
+            )
+
+            if (hasBack) {
+                source.foreground?.let {
+                    it.bounds = bounds
+                    it.draw(canvas)
+                }
+            } else {
+                source.background?.let {
+                    it.bounds = bounds
+                    it.draw(canvas)
+                }
+                source.foreground?.let {
+                    it.bounds = bounds
+                    it.draw(canvas)
+                }
+            }
             return
         }
+
         if (hasBack) {
-            // The pack scales the app artwork inside iconback. Scale the
-            // selected shape by the same amount, or the smaller artwork keeps
-            // its original outline while only the background changes shape.
+            // Keep the app artwork inside the scaled outline over the pack plate.
             val fraction = packScale.coerceIn(0.3f, 1f)
             val matrix = Matrix().apply {
                 setScale(fraction, fraction, iconSizePx / 2f, iconSizePx / 2f)
@@ -543,14 +618,19 @@ class IconRenderer(context: Context) {
             val save = canvas.save()
             try {
                 canvas.clipPath(artworkShape)
-                drawBase(canvas, source, fraction, hasBack = true)
+                drawBase(canvas, source, fraction, hasBack = true, hasPackDecoration = true)
             } finally {
                 canvas.restoreToCount(save)
             }
             return
         }
-        // Legacy icons rarely fill their canvas; scale up so the shape reads as
-        // a solid tile rather than a masked postage stamp.
+
+        if (hasPackDecoration) {
+            drawBase(canvas, source, packScale, hasBack = false, hasPackDecoration = true)
+            return
+        }
+
+        // Without pack metadata, legacy artwork keeps the launcher's existing fill behavior.
         val drawnSize = (iconSizePx * LEGACY_SHAPE_FILL).roundToInt()
         val offset = (iconSizePx - drawnSize) / 2
         source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
