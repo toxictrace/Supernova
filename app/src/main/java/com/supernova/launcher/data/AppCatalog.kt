@@ -408,7 +408,13 @@ class AppCatalog(
         val glass = if (variant == "ORIGINAL" || finishedArt) IconGlass.OFF else iconRenderer.glass
         return runLogged("render icon") {
             if (missingPackIcon) {
-                iconRenderer.renderMissingPackIcon(source, effectiveShape, customShapeSpec, decoration?.upon)
+                iconRenderer.renderMissingPackIcon(
+                    source,
+                    effectiveShape,
+                    customShapeSpec,
+                    decoration?.back,
+                    decoration?.upon
+                )
             } else {
                 val rendered = when {
                     gallery != null -> pickedPicture(gallery.bitmap, effectiveShape)
@@ -947,7 +953,7 @@ class AppCatalog(
     companion object {
         // Bumped when a render changes how an icon looks for the same
         // settings, so the disk cache starts over.
-        const val DISK_FORMAT = 3
+        const val DISK_FORMAT = 4
 
         // Marks a Large icon's copy in a cache key.
         const val LARGE_KEY = "^large"

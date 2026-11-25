@@ -231,6 +231,7 @@ class IconRenderer(context: Context) {
         source: Drawable,
         shape: IconShape,
         customShape: CustomShapeSpec?,
+        back: Drawable? = null,
         upon: Drawable? = null
     ): Drawable {
         val size = iconSizePx
@@ -244,22 +245,44 @@ class IconRenderer(context: Context) {
         val artwork = createBitmap(size, size)
         foreground.setBounds(0, 0, size, size)
         foreground.draw(Canvas(artwork))
+        val artworkBounds = visibleArtworkBounds(artwork)
+            ?: android.graphics.Rect(0, 0, size, size)
 
         val radius = largestInscribedCircleRadius(shapePath, size)
         val circleSize = radius * 2
-        val inset = (size - circleSize) / 2
         val circle = Path().apply {
             addCircle(size / 2f, size / 2f, radius.toFloat(), Path.Direction.CW)
         }
+        val sourceWidth = artworkBounds.width().coerceAtLeast(1)
+        val sourceHeight = artworkBounds.height().coerceAtLeast(1)
+        val artworkScale = maxOf(
+            circleSize.toFloat() / sourceWidth,
+            circleSize.toFloat() / sourceHeight
+        )
+        val targetWidth = sourceWidth * artworkScale
+        val targetHeight = sourceHeight * artworkScale
+        val center = size / 2f
+        val artworkTarget = RectF(
+            center - targetWidth / 2f,
+            center - targetHeight / 2f,
+            center + targetWidth / 2f,
+            center + targetHeight / 2f
+        )
+
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
-        canvas.drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
         canvas.withClip(shapePath) {
+            if (back != null) {
+                back.setBounds(0, 0, size, size)
+                back.draw(this)
+            } else {
+                drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+            }
             withClip(circle) {
                 drawBitmap(
                     artwork,
-                    null,
-                    android.graphics.Rect(inset, inset, inset + circleSize, inset + circleSize),
+                    artworkBounds,
+                    artworkTarget,
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                 )
             }
@@ -271,6 +294,29 @@ class IconRenderer(context: Context) {
         artwork.recycle()
         // The circular artwork has no separate drop shadow on the plate.
         return output.toDrawable(resources)
+    }
+
+    private fun visibleArtworkBounds(bitmap: Bitmap): android.graphics.Rect? {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        var left = width
+        var top = height
+        var right = -1
+        var bottom = -1
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                if (Color.alpha(pixels[y * width + x]) <= 8) continue
+                left = minOf(left, x)
+                top = minOf(top, y)
+                right = maxOf(right, x)
+                bottom = maxOf(bottom, y)
+            }
+        }
+        if (right < left || bottom < top) return null
+        return android.graphics.Rect(left, top, right + 1, bottom + 1)
     }
 
     private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
