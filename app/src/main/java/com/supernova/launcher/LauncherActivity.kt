@@ -1118,19 +1118,19 @@ class LauncherActivity :
             started,
             homeSurface
         )
-        return RootClockTargetSnapshot(target, resumed, homeSurface)
+        return RootClockTargetSnapshot(target, started, homeSurface)
     }
 
     private fun syncRootClockForSurface() {
         val state = viewModel.state.value
         if (!state.loaded) return
 
-        // An older launcher instance must not override the currently resumed one.
-        val anotherResumedLauncher = liveLaunchers.any { reference ->
+        // An older launcher instance must not override the currently started one.
+        val anotherStartedLauncher = liveLaunchers.any { reference ->
             val other = reference.get()
             other != null && other !== this && !other.isFinishing && other.rootClockActivityStarted
         }
-        if (!rootClockActivityStarted && anotherResumedLauncher) return
+        if (!rootClockActivityStarted && anotherStartedLauncher) return
 
         val snapshot = rootClockTargetSnapshot(state)
         (application as SupernovaApp).graph.rootClock.request(snapshot.target)
