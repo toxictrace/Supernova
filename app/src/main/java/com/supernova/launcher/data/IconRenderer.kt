@@ -208,7 +208,7 @@ class IconRenderer(context: Context) {
     fun renderPackArt(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?): Drawable {
         val shapePath = shape.pathFor(iconSizePx.toFloat(), customShape)
         val bitmap = createBitmap(iconSizePx, iconSizePx)
-        drawBase(Canvas(bitmap), source, 1f, hasBack = false, legacyFraction = asIsFraction(source))
+        drawBase(Canvas(bitmap), source, 1f, hasBack = false, hasPackDecoration = false, legacyFraction = asIsFraction(source))
 
         // A circular pack icon can contain transparent logo details. Detect
         // its outer disc independently of its interior, then enlarge it until
