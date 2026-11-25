@@ -10,9 +10,9 @@ import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.graphics.Region
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toDrawable
@@ -225,10 +225,8 @@ class IconRenderer(context: Context) {
         return if (shadow) withShadow(bitmap, mask) else bitmap.toDrawable(resources)
     }
 
-    // A missing icon-pack entry: the app's own artwork, circularly cropped,
-    // over a plate in the selected shape and the app's own background colour.
-    // Adaptive icons supply that colour in their background layer; legacy icons
-    // use their dominant colour. Pack masks and round-icon restrictions do not apply.
+    // A missing icon-pack entry: the app's artwork, circularly cropped,
+    // on a plate in the selected shape, coloured from the complete app icon.
     fun renderMissingPackIcon(
         source: Drawable,
         shape: IconShape,
@@ -236,33 +234,26 @@ class IconRenderer(context: Context) {
         upon: Drawable? = null
     ): Drawable {
         val size = iconSizePx
-        val adaptive = source as? AdaptiveIconDrawable
         val shapePath = shape.pathFor(size.toFloat(), customShape)
             ?: glassPainter.systemMask(
-                adaptive ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
+                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
                 size
             )
-        val background = adaptive?.background
-        val color = when (background) {
-            is ColorDrawable -> background.color
-            null -> dominantColorOf(source, size)
-            else -> dominantColorOf(background, size) ?: dominantColorOf(source, size)
-        } ?: PLATE_COLOR
-
-        val foreground = adaptive?.foreground ?: source
+        val color = dominantColorOf(source, size) ?: PLATE_COLOR
+        val foreground = (source as? AdaptiveIconDrawable)?.foreground ?: source
         val artwork = createBitmap(size, size)
         foreground.setBounds(0, 0, size, size)
         foreground.draw(Canvas(artwork))
 
+        val radius = largestInscribedCircleRadius(shapePath, size)
+        val circleSize = radius * 2
+        val inset = (size - circleSize) / 2
+        val circle = Path().apply {
+            addCircle(size / 2f, size / 2f, radius.toFloat(), Path.Direction.CW)
+        }
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
-
-        val circleSize = (size * MISSING_ICON_CIRCLE_FRACTION).roundToInt().coerceAtLeast(1)
-        val inset = (size - circleSize) / 2
-        val circle = Path().apply {
-            addCircle(size / 2f, size / 2f, circleSize / 2f, Path.Direction.CW)
-        }
         canvas.withClip(shapePath) {
             withClip(circle) {
                 drawBitmap(
@@ -278,7 +269,42 @@ class IconRenderer(context: Context) {
             }
         }
         artwork.recycle()
-        return if (shadow) withShadow(output) else output.toDrawable(resources)
+        // The circular artwork has no separate drop shadow on the plate.
+        return output.toDrawable(resources)
+    }
+
+    private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
+        val clip = Region(0, 0, size, size)
+        val shape = Region().apply { setPath(shapePath, clip) }
+        val center = size / 2f
+
+        fun fits(radius: Int): Boolean {
+            val squaredRadius = radius * radius
+            val min = (center - radius).toInt().coerceAtLeast(0)
+            val max = (center + radius).toInt().coerceAtMost(size - 1)
+            for (y in min..max) {
+                val dy = y + 0.5f - center
+                for (x in min..max) {
+                    val dx = x + 0.5f - center
+                    if (dx * dx + dy * dy <= squaredRadius && !shape.contains(x, y)) return false
+                }
+            }
+            return true
+        }
+
+        var low = 1
+        var high = size / 2
+        var best = 1
+        while (low <= high) {
+            val middle = (low + high) / 2
+            if (fits(middle)) {
+                best = middle
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        return best
     }
 
     private fun dominantColorOf(source: Drawable, size: Int): Int? {
@@ -785,7 +811,6 @@ class IconRenderer(context: Context) {
         // glyph in a safe zone: about 68% of the shape with the uniform size,
         // which a square logo's corners still clear in a circle.
         private const val SHAPED_PLATE_CONTENT = 0.94f
-        private const val MISSING_ICON_CIRCLE_FRACTION = 0.82f
         private const val SHADOW_BLUR_DP = 2f
         private const val SHADOW_OFFSET_Y_DP = 1f
         private const val SHADOW_COLOR = 0x4D000000
