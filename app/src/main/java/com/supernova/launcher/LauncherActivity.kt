@@ -364,7 +364,7 @@ class LauncherActivity :
     // the time onNewIntent runs - the Lifecycle state is STARTED either way,
     // because the temporary pause has already been dispatched.
     private var startedSinceResume = false
-    private var rootClockActivityResumed = false
+    private var rootClockActivityStarted = false
     private var googleDiscoverVisible = false
 
     // When the launcher's window last gained focus (uptime ms): a home press
@@ -1027,6 +1027,7 @@ class LauncherActivity :
 
     override fun onStart() {
         super.onStart()
+        rootClockActivityStarted = true
         syncRootClockForSurface()
         if (::googleDiscover.isInitialized) googleDiscover.onStart()
         MainStallWatch.start()
@@ -1051,6 +1052,7 @@ class LauncherActivity :
     }
 
     override fun onStop() {
+        rootClockActivityStarted = false
         syncRootClockForSurface()
         // The launched app covers the launcher now: its circle can go, and
         // the lifted icon comes back.
@@ -1069,7 +1071,6 @@ class LauncherActivity :
         if (::googleDiscover.isInitialized) googleDiscover.onResume()
         // Cleared after onNewIntent, which runs first on the way back in.
         startedSinceResume = false
-        rootClockActivityResumed = true
         syncRootClockForSurface()
         // The launcher is what the user is looking at again, so a drawer still
         // open is one they came back to, not one parked behind an app.
@@ -1078,8 +1079,6 @@ class LauncherActivity :
     }
 
     override fun onPause() {
-        rootClockActivityResumed = false
-        syncRootClockForSurface()
         // Home pressed while a circle was still filling, say: that launch is
         // off. One already asked for carries on.
         launchPrelude.cancelPending()
@@ -1106,17 +1105,17 @@ class LauncherActivity :
 
     private data class RootClockTargetSnapshot(
         val target: Boolean,
-        val resumed: Boolean,
+        val started: Boolean,
         val homeSurface: Boolean
     )
 
     private fun rootClockTargetSnapshot(state: LauncherUiState): RootClockTargetSnapshot {
-        val resumed = rootClockActivityResumed
+        val started = rootClockActivityStarted
         val prefs = state.prefs
         val homeSurface = if (prefs.rootClockMode == RootClockMode.HOME) isHomeSurfaceActive() else true
         val target = com.supernova.launcher.ui.settings.shouldHideRootClock(
             prefs.rootClockMode,
-            resumed,
+            started,
             homeSurface
         )
         return RootClockTargetSnapshot(target, resumed, homeSurface)
@@ -1129,9 +1128,9 @@ class LauncherActivity :
         // An older launcher instance must not override the currently resumed one.
         val anotherResumedLauncher = liveLaunchers.any { reference ->
             val other = reference.get()
-            other != null && other !== this && !other.isFinishing && other.rootClockActivityResumed
+            other != null && other !== this && !other.isFinishing && other.rootClockActivityStarted
         }
-        if (!rootClockActivityResumed && anotherResumedLauncher) return
+        if (!rootClockActivityStarted && anotherResumedLauncher) return
 
         val snapshot = rootClockTargetSnapshot(state)
         (application as SupernovaApp).graph.rootClock.request(snapshot.target)
