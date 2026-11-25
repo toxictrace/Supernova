@@ -207,11 +207,30 @@ class IconRenderer(context: Context) {
     // cut its outer lines away.
     fun renderPackArt(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?): Drawable {
         val shapePath = shape.pathFor(iconSizePx.toFloat(), customShape)
-        val asMade = source !is AdaptiveIconDrawable && (shapePath == null || !solid(source))
-        if (!asMade) return render(source, null, shape, customShape, IconGlass.OFF)
-
         val bitmap = createBitmap(iconSizePx, iconSizePx)
         drawBase(Canvas(bitmap), source, 1f, hasBack = false, legacyFraction = asIsFraction(source))
+
+        // A circular pack icon can contain transparent logo details. Detect
+        // its outer disc independently of its interior, then enlarge it until
+        // it covers the selected mask. This replaces the round silhouette.
+        if (shapePath != null) {
+            val pixels = IntArray(iconSizePx * iconSizePx)
+            bitmap.getPixels(pixels, 0, iconSizePx, 0, 0, iconSizePx, iconSizePx)
+            val disc = PictureFrame.discOutline(pixels, iconSizePx)
+            if (disc != null) {
+                val cover = PictureFrame.reach(maskPixels(shapePath, iconSizePx), iconSizePx) /
+                    PictureFrame.boxReach(pixels, iconSizePx, disc)
+                val shaped = filledMask(bitmap, disc, shapePath, cover)
+                bitmap.recycle()
+                return shaped
+            }
+        }
+
+        val asMade = source !is AdaptiveIconDrawable && (shapePath == null || !solid(source))
+        if (!asMade) {
+            bitmap.recycle()
+            return render(source, null, shape, customShape, IconGlass.OFF)
+        }
 
         // Pack artwork without a solid background is a logo, not a tile.
         // Keep the complete artwork and put it on the user's selected shape.
@@ -254,8 +273,10 @@ class IconRenderer(context: Context) {
         val size = iconSizePx
         val pixels = IntArray(size * size)
         picture.getPixels(pixels, 0, size, 0, 0, size, size)
-        val box = PictureFrame.disc(pixels, size) ?: return null
-        return filledMask(picture, box, mask, 1f)
+        val box = PictureFrame.discOutline(pixels, size) ?: return null
+        val cover = PictureFrame.reach(maskPixels(mask, size), size) /
+            PictureFrame.boxReach(pixels, size, box)
+        return filledMask(picture, box, mask, cover)
     }
 
     // A legacy logo: whole, at the uniform size, on a plate cut to the

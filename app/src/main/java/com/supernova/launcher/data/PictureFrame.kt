@@ -37,14 +37,19 @@ internal object PictureFrame {
     // The box round a legacy icon that is a round tile of its own (a web
     // app's, a round launcher icon): a solid disc as big as a tile, clear
     // outside its circle. Null for anything else, a square tile included.
-    fun disc(pixels: IntArray, size: Int): IntArray? =
+    // The outer silhouette of a circular icon, even when its logo has
+    // transparent holes. Used when a selected shape must replace its round
+    // backing rather than preserve it as a glyph.
+    fun discOutline(pixels: IntArray, size: Int): IntArray? =
         BakedBacking.contentBounds(pixels, size)?.takeIf { box ->
             val width = box[BakedBacking.RIGHT] - box[BakedBacking.LEFT] + 1
             val height = box[BakedBacking.BOTTOM] - box[BakedBacking.TOP] + 1
             maxOf(width, height) * TILE_ASPECT <= minOf(width, height) &&
-                minOf(width, height) >= size * TILE_SPAN && discSolid(pixels, size, box) &&
-                outsideClear(pixels, size, box)
+                minOf(width, height) >= size * TILE_SPAN && outsideClear(pixels, size, box)
         }
+
+    fun disc(pixels: IntArray, size: Int): IntArray? =
+        discOutline(pixels, size)?.takeIf { discSolid(pixels, size, it) }
 
     // Whether the box's corners, outside the disc it encloses, are clear
     // but for an edge's antialiasing.

@@ -83,6 +83,15 @@ class PictureFrameTest {
     }
 
     @Test
+    fun aCircularOutlineWithTransparentLogoDetailsIsRecognized() {
+        val ring = picture { x, y ->
+            inDisc(x, y, size * 0.46f) && !inDisc(x, y, size * 0.18f)
+        }
+        assertNull(PictureFrame.disc(ring, size))
+        assertNotNull(PictureFrame.discOutline(ring, size))
+    }
+
+    @Test
     fun aSquareTileIsNoDisc() {
         assertNull(PictureFrame.disc(roundedSquare(margin = 8, radius = 16), size))
     }
