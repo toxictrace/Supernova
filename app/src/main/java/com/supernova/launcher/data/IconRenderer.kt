@@ -240,16 +240,31 @@ class IconRenderer(context: Context) {
                 source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
                 size
             )
-        val color = dominantColorOf(source, size) ?: PLATE_COLOR
-        val foreground = (source as? AdaptiveIconDrawable)?.foreground ?: source
         val artwork = createBitmap(size, size)
-        foreground.setBounds(0, 0, size, size)
-        foreground.draw(Canvas(artwork))
+        val artworkCanvas = Canvas(artwork)
+        if (source is AdaptiveIconDrawable) {
+            val bleed = (size * ADAPTIVE_BLEED).roundToInt()
+            val bounds = android.graphics.Rect(-bleed, -bleed, size + bleed, size + bleed)
+            source.background?.let {
+                it.setBounds(bounds)
+                it.draw(artworkCanvas)
+            }
+            source.foreground?.let {
+                it.setBounds(bounds)
+                it.draw(artworkCanvas)
+            }
+        } else {
+            source.setBounds(0, 0, size, size)
+            source.draw(artworkCanvas)
+        }
+        val color = DominantColor.of(artwork) ?: PLATE_COLOR
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
-        val radius = largestInscribedCircleRadius(shapePath, size).coerceAtLeast(1)
+        // Keep the selected shape visible around the circular artwork.
+        val radius = (largestInscribedCircleRadius(shapePath, size) * MISSING_ICON_CIRCLE_FRACTION)
+            .roundToInt().coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
@@ -274,13 +289,10 @@ class IconRenderer(context: Context) {
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
-            if (back != null) {
-                back.mutate().apply {
-                    setBounds(0, 0, size, size)
-                    draw(this@withClip)
-                }
-            } else {
-                drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+            drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+            back?.mutate()?.let {
+                it.setBounds(0, 0, size, size)
+                it.draw(this)
             }
             if (isAlreadyRound) {
                 drawBitmap(
@@ -376,15 +388,6 @@ class IconRenderer(context: Context) {
             }
         }
         return best
-    }
-
-    private fun dominantColorOf(source: Drawable, size: Int): Int? {
-        val bitmap = createBitmap(size, size)
-        source.setBounds(0, 0, size, size)
-        source.draw(Canvas(bitmap))
-        val color = DominantColor.of(bitmap)
-        bitmap.recycle()
-        return color
     }
 
     // An app's own icon, left as it comes. A legacy one that is a tile of its
@@ -885,6 +888,7 @@ class IconRenderer(context: Context) {
         private const val SHADOW_BLUR_DP = 2f
         private const val SHADOW_OFFSET_Y_DP = 1f
         private const val SHADOW_COLOR = 0x4D000000
+        private const val MISSING_ICON_CIRCLE_FRACTION = 0.84f
     }
 }
 
