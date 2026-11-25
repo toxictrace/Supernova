@@ -128,7 +128,8 @@ object SettingsCatalogue {
         // Opens a section by title (a built-in card's own settings page,
         // the Desktop search bar page).
         val openSection: (Int) -> Unit = {},
-        val onRootClockChanged: (Boolean) -> Unit = {}
+        val onRootClockChanged: (Boolean) -> Unit = {},
+        val onRootClockScopeChanged: (RootClockScope) -> Unit = {}
     )
 
     // Builds the rows whose tap offers one value out of a list. The pick
@@ -516,7 +517,7 @@ object SettingsCatalogue {
                     RootClockScope.entries,
                     { it.rootClockScope },
                     { if (it == RootClockScope.LAUNCHER) R.string.root_clock_scope_launcher else R.string.root_clock_scope_home }
-                ) { viewModel.set(Pref.rootClockScope, it) }.hiddenWhen {
+                ) { actions.onRootClockScopeChanged(it) }.hiddenWhen {
                     needsOn(R.string.root_hide_clock, !it.rootHideClock)
                 }.nested(),
                 rows.choice(

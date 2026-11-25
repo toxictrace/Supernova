@@ -53,6 +53,28 @@ class PrefRegistryTest {
     }
 
     @Test
+    fun `root clock enabled state and scope survive a store round trip`() {
+        val stored = mutablePreferencesOf(
+            Pref.rootHideClock.key to true,
+            Pref.rootClockScope.key to RootClockScope.HOME
+                .name
+        )
+        val read = LauncherPreferences.decode(stored)
+        assertTrue(read.rootHideClock)
+        assertEquals(RootClockScope.HOME, read.rootClockScope)
+
+        val written = mutablePreferencesOf().also { LauncherPreferences.writeAll(it, read) }
+        assertEquals(true, written[Pref.rootHideClock.key])
+        assertEquals(RootClockScope.HOME.name, written[Pref.rootClockScope.key])
+
+        val disabled = LauncherPreferences.decode(
+            mutablePreferencesOf(Pref.rootHideClock.key to false, Pref.rootClockScope.key to RootClockScope.HOME.name)
+        )
+        assertFalse(disabled.rootHideClock)
+        assertEquals(RootClockScope.HOME, disabled.rootClockScope)
+    }
+
+    @Test
     fun `frequent apps row is enabled only on All by default`() {
         assertTrue(LauncherPrefs().drawerFrequentRow)
         assertFalse(LauncherPrefs().drawerFrequentRowAllTabs)

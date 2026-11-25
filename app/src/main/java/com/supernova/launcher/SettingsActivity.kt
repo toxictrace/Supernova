@@ -631,6 +631,11 @@ class SettingsActivity : AppCompatActivity() {
                 )
             },
             openSection = { title -> navigateTo(title, 0) },
+            onRootClockScopeChanged = { scope ->
+                lifecycleScope.launch {
+                    viewModel.setAndWait(Pref.rootClockScope, scope)
+                }
+            },
             onRootClockChanged = { hidden ->
                 lifecycleScope.launch {
                     if (hidden) {
