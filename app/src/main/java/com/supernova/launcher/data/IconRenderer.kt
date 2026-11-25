@@ -206,11 +206,19 @@ class IconRenderer(context: Context) {
     // (line art, a glyph) is drawn whole, since the shape's overfill and clip
     // cut its outer lines away.
     fun renderPackArt(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?): Drawable {
-        val asMade = source !is AdaptiveIconDrawable && (shape == IconShape.SYSTEM || !solid(source))
+        val shapePath = shape.pathFor(iconSizePx.toFloat(), customShape)
+        val asMade = source !is AdaptiveIconDrawable && (shapePath == null || !solid(source))
         if (!asMade) return render(source, null, shape, customShape, IconGlass.OFF)
+
         val bitmap = createBitmap(iconSizePx, iconSizePx)
         drawBase(Canvas(bitmap), source, 1f, hasBack = false, legacyFraction = asIsFraction(source))
-        return if (shadow) withShadow(bitmap) else bitmap.toDrawable(resources)
+
+        // Pack artwork without a solid background is a logo, not a tile.
+        // Keep the complete artwork and put it on the user's selected shape.
+        val flat = shapePath?.let { path ->
+            withPlate(normalized(bitmap), path, SHAPED_PLATE_CONTENT)
+        } ?: bitmap
+        return if (shadow) withShadow(flat) else flat.toDrawable(resources)
     }
 
     // Whether the drawable, drawn at the icon's size, is one solid body.
