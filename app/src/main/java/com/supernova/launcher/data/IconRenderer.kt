@@ -301,17 +301,7 @@ class IconRenderer(context: Context) {
                     }
                 )
             }
-            back?.mutate()?.let {
-                val backSize = (size * LEGACY_SHAPE_FILL).roundToInt()
-                val backOffset = (size - backSize) / 2
-                it.setBounds(
-                    backOffset,
-                    backOffset,
-                    backOffset + backSize,
-                    backOffset + backSize
-                )
-                it.draw(this)
-            }
+            back?.let { drawBackCoveringShape(this, it, shapePath, size) }
             if (isAlreadyRound) {
                 drawBitmap(
                     artwork,
@@ -362,16 +352,68 @@ class IconRenderer(context: Context) {
     }
 
     private fun hasTransparentCorners(bitmap: Bitmap, bounds: android.graphics.Rect): Boolean {
-        val left = bounds.left.coerceIn(0, bitmap.width - 1)
-        val top = bounds.top.coerceIn(0, bitmap.height - 1)
-        val right = (bounds.right - 1).coerceIn(0, bitmap.width - 1)
-        val bottom = (bounds.bottom - 1).coerceIn(0, bitmap.height - 1)
-        return listOf(
-            bitmap.get(left, top),
-            bitmap.get(right, top),
-            bitmap.get(left, bottom),
-            bitmap.get(right, bottom)
-        ).all { Color.alpha(it) <= 8 }
+        val width = bounds.width().coerceAtLeast(1)
+        val height = bounds.height().coerceAtLeast(1)
+        val patchWidth = (width / 8).coerceAtLeast(2)
+        val patchHeight = (height / 8).coerceAtLeast(2)
+
+        fun cornerIsTransparent(left: Int, top: Int): Boolean {
+            var transparent = 0
+            var total = 0
+            for (y in top until (top + patchHeight).coerceAtMost(bounds.bottom)) {
+                for (x in left until (left + patchWidth).coerceAtMost(bounds.right)) {
+                    total++
+                    if (Color.alpha(bitmap.get(x, y)) <= 8) transparent++
+                }
+            }
+            return total > 0 && transparent.toFloat() / total >= 0.75f
+        }
+
+        return cornerIsTransparent(bounds.left, bounds.top) &&
+            cornerIsTransparent(bounds.right - patchWidth, bounds.top) &&
+            cornerIsTransparent(bounds.left, bounds.bottom - patchHeight) &&
+            cornerIsTransparent(bounds.right - patchWidth, bounds.bottom - patchHeight)
+    }
+
+    private fun drawBackCoveringShape(
+        canvas: Canvas,
+        back: Drawable,
+        shapePath: Path,
+        size: Int
+    ) {
+        val bitmap = createBitmap(size, size)
+        val backCanvas = Canvas(bitmap)
+        back.mutate().apply {
+            setBounds(0, 0, size, size)
+            draw(backCanvas)
+        }
+
+        val bounds = visibleArtworkBounds(bitmap)
+        if (bounds != null) {
+            val shapeBounds = RectF()
+            shapePath.computeBounds(shapeBounds, true)
+            val scale = maxOf(
+                shapeBounds.width() / bounds.width().coerceAtLeast(1),
+                shapeBounds.height() / bounds.height().coerceAtLeast(1)
+            )
+            val targetWidth = bounds.width() * scale
+            val targetHeight = bounds.height() * scale
+            val centerX = shapeBounds.centerX()
+            val centerY = shapeBounds.centerY()
+            val target = RectF(
+                centerX - targetWidth / 2f,
+                centerY - targetHeight / 2f,
+                centerX + targetWidth / 2f,
+                centerY + targetHeight / 2f
+            )
+            canvas.drawBitmap(
+                bitmap,
+                bounds,
+                target,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        }
+        bitmap.recycle()
     }
 
     private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
