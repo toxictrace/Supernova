@@ -267,7 +267,7 @@ class IconRenderer(context: Context) {
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
         // Keep the selected shape visible around the circular artwork.
-        val radius = (largestInscribedCircleRadius(shapePath, size) * MISSING_ICON_CIRCLE_FRACTION)
+        val radius = largestInscribedCircleRadius(shapePath, size)
             .roundToInt().coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
@@ -381,41 +381,86 @@ class IconRenderer(context: Context) {
         shapePath: Path,
         size: Int
     ) {
-        val bitmap = createBitmap(size, size)
-        val backCanvas = Canvas(bitmap)
+        val artwork = createBitmap(size, size)
+        val artworkCanvas = Canvas(artwork)
         back.mutate().apply {
             setBounds(0, 0, size, size)
-            draw(backCanvas)
+            draw(artworkCanvas)
         }
 
-        val bounds = visibleArtworkBounds(bitmap)
+        val bounds = visibleArtworkBounds(artwork)
         if (bounds != null) {
-            val shapeBounds = RectF()
-            shapePath.computeBounds(shapeBounds, true)
-            val scale = maxOf(
-                shapeBounds.width() / bounds.width().coerceAtLeast(1),
-                shapeBounds.height() / bounds.height().coerceAtLeast(1)
+            val shapeMask = createBitmap(size, size)
+            Canvas(shapeMask).drawPath(
+                shapePath,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
             )
-            val targetWidth = bounds.width() * scale
-            val targetHeight = bounds.height() * scale
-            val centerX = shapeBounds.centerX()
-            val centerY = shapeBounds.centerY()
-            val target = RectF(
-                centerX - targetWidth / 2f,
-                centerY - targetHeight / 2f,
-                centerX + targetWidth / 2f,
-                centerY + targetHeight / 2f
-            )
-            canvas.drawBitmap(
-                bitmap,
-                bounds,
-                target,
-                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            )
-        }
-        bitmap.recycle()
-    }
+            val maskPixels = IntArray(size * size)
+            shapeMask.getPixels(maskPixels, 0, size, 0, 0, size, size)
+            val requiredPixels = maskPixels.count { Color.alpha(it) >= 128 }
 
+            val scaledArtwork = createBitmap(size, size)
+            val scaledCanvas = Canvas(scaledArtwork)
+            val artworkPixels = IntArray(size * size)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            val center = size / 2f
+            val baseScale = maxOf(
+                size.toFloat() / bounds.width().coerceAtLeast(1),
+                size.toFloat() / bounds.height().coerceAtLeast(1)
+            )
+
+            fun coverage(scale: Float): Float {
+                scaledArtwork.eraseColor(Color.TRANSPARENT)
+                val width = bounds.width() * scale
+                val height = bounds.height() * scale
+                val target = RectF(
+                    center - width / 2f,
+                    center - height / 2f,
+                    center + width / 2f,
+                    center + height / 2f
+                )
+                scaledCanvas.drawBitmap(artwork, bounds, target, paint)
+                scaledArtwork.getPixels(artworkPixels, 0, size, 0, 0, size, size)
+                var covered = 0
+                for (index in maskPixels.indices) {
+                    if (Color.alpha(maskPixels[index]) >= 128 &&
+                        Color.alpha(artworkPixels[index]) > 8
+                    ) covered++
+                }
+                return if (requiredPixels == 0) 1f else covered.toFloat() / requiredPixels
+            }
+
+            var low = baseScale
+            var high = baseScale
+            var highCoverage = coverage(high)
+            var attempts = 0
+            while (highCoverage < 0.995f && attempts < 8) {
+                low = high
+                high *= 2f
+                highCoverage = coverage(high)
+                attempts++
+            }
+            if (highCoverage >= 0.995f) {
+                repeat(10) {
+                    val middle = (low + high) / 2f
+                    if (coverage(middle) >= 0.995f) high = middle else low = middle
+                }
+            }
+
+            val targetWidth = bounds.width() * high
+            val targetHeight = bounds.height() * high
+            val target = RectF(
+                center - targetWidth / 2f,
+                center - targetHeight / 2f,
+                center + targetWidth / 2f,
+                center + targetHeight / 2f
+            )
+            canvas.drawBitmap(artwork, bounds, target, paint)
+            shapeMask.recycle()
+            scaledArtwork.recycle()
+        }
+        artwork.recycle()
+    }
     private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
         val clip = Region(0, 0, size, size)
         val shape = Region().apply { setPath(shapePath, clip) }
@@ -948,7 +993,6 @@ class IconRenderer(context: Context) {
         private const val SHADOW_BLUR_DP = 2f
         private const val SHADOW_OFFSET_Y_DP = 1f
         private const val SHADOW_COLOR = 0x4D000000
-        private const val MISSING_ICON_CIRCLE_FRACTION = 0.84f
     }
 }
 
