@@ -257,7 +257,11 @@ class IconRenderer(context: Context) {
             source.setBounds(0, 0, size, size)
             source.draw(artworkCanvas)
         }
-        val color = DominantColor.of(artwork) ?: PLATE_COLOR
+        val fallbackPlateColor = if (back == null) {
+            DominantColor.of(artwork) ?: PLATE_COLOR
+        } else {
+            null
+        }
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
@@ -289,7 +293,14 @@ class IconRenderer(context: Context) {
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
-            drawPath(shapePath, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
+            if (back == null) {
+                drawPath(
+                    shapePath,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = fallbackPlateColor ?: PLATE_COLOR
+                    }
+                )
+            }
             back?.mutate()?.let {
                 it.setBounds(0, 0, size, size)
                 it.draw(this)
