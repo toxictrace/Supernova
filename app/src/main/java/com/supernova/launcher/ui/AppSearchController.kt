@@ -40,18 +40,11 @@ class AppSearchController(
         query = ""
         val prefs = viewModel.state.value.prefs
         selectedTab = prefs.appSearchSelectedTab.coerceIn(TAB_FREQUENT, TAB_UPDATED)
-        val backgroundColor = LabelStyler.parseColor(
-            prefs.appSearchBgColor, activity.getColor(R.color.surface)
-        )
-        val textColor = LabelStyler.parseColor(
-            prefs.appSearchTextColor, activity.getColor(R.color.textPrimary)
-        )
-        val accentColor = LabelStyler.parseColor(
-            prefs.appSearchAccentColor,
-            com.supernova.launcher.ui.theme.CustomAccent.of(
-                android.widget.LinearLayout(activity)
-            )
-        )
+        val searchStyle = com.supernova.launcher.ui.theme.Styles.resolve(activity, prefs)
+            .of(com.supernova.launcher.ui.theme.SurfaceId.APP_SEARCH)
+        val backgroundColor = searchStyle.surface
+        val textColor = searchStyle.text
+        val accentColor = searchStyle.accent
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL

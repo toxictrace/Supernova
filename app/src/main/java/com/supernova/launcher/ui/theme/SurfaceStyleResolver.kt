@@ -41,6 +41,9 @@ object Styles {
         val accent: String,
         val drawerBgColor: String,
         val folderBgColor: String,
+        val appSearchBgColor: String,
+        val appSearchTextColor: String,
+        val appSearchAccentColor: String,
         val drawerAlpha: Float,
         val dockAlpha: Float,
         val generation: Int
@@ -96,6 +99,7 @@ object Styles {
         val key = Key(
             prefs.styleConfig, prefs.paletteSource.name, prefs.paletteSeed, night,
             prefs.accentColor.name, prefs.drawerBgColor, prefs.folderBgColor,
+            prefs.appSearchBgColor, prefs.appSearchTextColor, prefs.appSearchAccentColor,
             prefs.drawerBgOpacity, prefs.dockBgOpacity, wallpaperGeneration
         )
         cachedStyles?.let { if (key == cachedKey) return it }
@@ -150,6 +154,8 @@ object Styles {
         val folderLegacy = LabelStyler.parseColor(
             prefs.folderBgColor, themeSurface
         )
+        val appSearchSurface = LabelStyler.parseColor(prefs.appSearchBgColor, themeSurface)
+        val appSearchText = LabelStyler.parseColor(prefs.appSearchTextColor, themeText)
 
         val drawer = resolved(
             SurfaceId.DRAWER, drawerLegacy, themeText, prefs.drawerBgOpacity,
@@ -182,6 +188,9 @@ object Styles {
                 ),
                 SurfaceId.SETTINGS to resolved(
                     SurfaceId.SETTINGS, context.getColor(R.color.background), themeText, null
+                ),
+                SurfaceId.APP_SEARCH to resolved(
+                    SurfaceId.APP_SEARCH, appSearchSurface, appSearchText, null, accent
                 ),
                 SurfaceId.HOME to resolved(
                     SurfaceId.HOME, android.graphics.Color.TRANSPARENT, onWallpaper, null

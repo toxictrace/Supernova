@@ -2061,31 +2061,6 @@ object SettingsCatalogue {
                 )
             }
         ),
-        SettingsSection(
-            R.string.app_search_style,
-            listOf(
-                SettingItem.Header(R.string.app_search_style_colors),
-                rows.color(
-                    R.string.app_search_background_color,
-                    { it.appSearchBgColor },
-                    default = context.getColor(R.color.surface)
-                ) { viewModel.set(Pref.appSearchBgColor, it) },
-                rows.color(
-                    R.string.app_search_text_color,
-                    { it.appSearchTextColor },
-                    default = context.getColor(R.color.textPrimary)
-                ) { viewModel.set(Pref.appSearchTextColor, it) },
-                rows.color(
-                    R.string.app_search_accent_color,
-                    { it.appSearchAccentColor },
-                    default = com.google.android.material.color.MaterialColors.getColor(
-                        context,
-                        androidx.appcompat.R.attr.colorAccent,
-                        context.getColor(R.color.accentCustom)
-                    )
-                ) { viewModel.set(Pref.appSearchAccentColor, it) }
-            )
-        )
     )
     }
 
@@ -2147,11 +2122,9 @@ object SettingsCatalogue {
                 { actions.openStylePicker(SurfaceId.DRAWER_SEARCH_BAR) }
             ),
             SettingItem.StyleTarget(R.string.settings, SurfaceId.SETTINGS, { actions.openStylePicker(SurfaceId.SETTINGS) }),
-            SettingItem.SectionLink(
-                R.string.app_search_style,
-                R.drawable.ic_settings_search,
-                subtitle = { context.getString(R.string.app_search_style_summary) },
-                onClick = { actions.openSection(R.string.app_search_style) }
+            SettingItem.StyleTarget(
+                R.string.app_search_style, SurfaceId.APP_SEARCH,
+                { actions.openStylePicker(SurfaceId.APP_SEARCH) }
             )
         )
     )
