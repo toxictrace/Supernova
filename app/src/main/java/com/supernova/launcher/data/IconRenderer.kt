@@ -353,6 +353,20 @@ class IconRenderer(context: Context) {
             addCircle(center, center, radius.toFloat(), Path.Direction.CW)
         }
 
+        // First rasterize the enlarged artwork, then crop that completed image to the circle.
+        val preScaledArtwork = createBitmap(size, size)
+        Canvas(preScaledArtwork).drawBitmap(
+            artwork,
+            artworkBounds,
+            artworkTarget,
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        )
+        val croppedArtwork = createBitmap(size, size)
+        Canvas(croppedArtwork).withClip(circle) {
+            drawBitmap(preScaledArtwork, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        }
+        preScaledArtwork.recycle()
+
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
@@ -373,20 +387,19 @@ class IconRenderer(context: Context) {
                     Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                 )
             } else {
-                withClip(circle) {
-                    drawBitmap(
-                        artwork,
-                        artworkBounds,
-                        artworkTarget,
-                        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-                    )
-                }
+                drawBitmap(
+                    croppedArtwork,
+                    0f,
+                    0f,
+                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                )
             }
             upon?.let {
                 it.setBounds(0, 0, size, size)
                 it.draw(this)
             }
         }
+        croppedArtwork.recycle()
         artwork.recycle()
         return output.toDrawable(resources)
     }
