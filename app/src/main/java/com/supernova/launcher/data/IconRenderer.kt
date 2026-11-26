@@ -10,7 +10,6 @@ import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
-import android.graphics.Region
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
@@ -266,9 +265,12 @@ class IconRenderer(context: Context) {
             ?: android.graphics.Rect(0, 0, size, size)
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
-        // Keep the selected shape visible around the circular artwork.
-        val radius = largestInscribedCircleRadius(shapePath, size)
-            .coerceAtLeast(1)
+        // Keep a small, density-aware border around the circular artwork.
+        // The selected shape clips the finished composition; using its strict
+        // inscribed circle made icons tiny on rounded and polygonal shapes.
+        val circleInset = (2f * resources.displayMetrics.density * resolutionScale)
+            .roundToInt().coerceAtLeast(1)
+        val radius = (size / 2 - circleInset).coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
@@ -424,7 +426,7 @@ class IconRenderer(context: Context) {
                 var covered = 0
                 for (index in maskPixels.indices) {
                     if (Color.alpha(maskPixels[index]) >= 128 &&
-                        Color.alpha(artworkPixels[index]) > 8
+                        Color.alpha(artworkPixels[index]) >= 128
                     ) covered++
                 }
                 return if (requiredPixels == 0) 1f else covered.toFloat() / requiredPixels
@@ -434,7 +436,7 @@ class IconRenderer(context: Context) {
             var high = baseScale
             var highCoverage = coverage(high)
             var attempts = 0
-            while (highCoverage < 0.995f && attempts < 8) {
+            while (highCoverage < 0.995f && attempts < 12) {
                 low = high
                 high *= 2f
                 highCoverage = coverage(high)
@@ -461,40 +463,6 @@ class IconRenderer(context: Context) {
         }
         artwork.recycle()
     }
-    private fun largestInscribedCircleRadius(shapePath: Path, size: Int): Int {
-        val clip = Region(0, 0, size, size)
-        val shape = Region().apply { setPath(shapePath, clip) }
-        val center = size / 2f
-
-        fun fits(radius: Int): Boolean {
-            val squaredRadius = radius * radius
-            val min = (center - radius).toInt().coerceAtLeast(0)
-            val max = (center + radius).toInt().coerceAtMost(size - 1)
-            for (y in min..max) {
-                val dy = y + 0.5f - center
-                for (x in min..max) {
-                    val dx = x + 0.5f - center
-                    if (dx * dx + dy * dy <= squaredRadius && !shape.contains(x, y)) return false
-                }
-            }
-            return true
-        }
-
-        var low = 1
-        var high = size / 2
-        var best = 1
-        while (low <= high) {
-            val middle = (low + high) / 2
-            if (fits(middle)) {
-                best = middle
-                low = middle + 1
-            } else {
-                high = middle - 1
-            }
-        }
-        return best
-    }
-
     // An app's own icon, left as it comes. A legacy one that is a tile of its
     // own takes the icon shape at full size, as an adaptive icon does, and a
     // disc of its own is drawn whole at that size (see legacyDisc);
