@@ -110,7 +110,6 @@ class AppSearchController(
         val tabs = TabLayout(activity).apply {
             tabMode = TabLayout.MODE_SCROLLABLE
             tabGravity = TabLayout.GRAVITY_START
-            setBackgroundColor(backgroundColor)
             setTabTextColors(textColor, textColor)
             setTabRippleColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT))
             isInlineLabel = true
@@ -233,12 +232,12 @@ class AppSearchController(
             )
         )
 
-        tabs.getTabAt(selectedTab)?.select()
         refresh()
         dialog = Dialog(activity).also {
             it.setContentView(root)
             it.setOnDismissListener { dialog = null }
             it.show()
+            tabs.post { tabs.getTabAt(selectedTab)?.select() }
             it.window?.apply {
                 setBackgroundDrawableResource(android.R.color.transparent)
                 setDimAmount(0.28f)
