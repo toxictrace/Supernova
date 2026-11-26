@@ -230,7 +230,9 @@ class AppSearchController(
                 maxLines = 2
                 textSize = 11f
                 setTextColor(textColor)
-                setPadding(0, dp(4), 0, 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(32)
+                )
             }
             cell.addView(icon)
             cell.addView(label, LinearLayout.LayoutParams(

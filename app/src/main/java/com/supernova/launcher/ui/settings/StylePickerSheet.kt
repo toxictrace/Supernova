@@ -47,7 +47,7 @@ object StylePickerSheet {
     // The home bar's opacity is on its own page, with its radius.
     private val OPACITY_SURFACES = setOf(
         SurfaceId.DRAWER, SurfaceId.DOCK, SurfaceId.FOLDER, SurfaceId.DRAWER_SEARCH_BAR, SurfaceId.HOME,
-        SurfaceId.CARDS
+        SurfaceId.CARDS, SurfaceId.APP_SEARCH
     )
 
     private val BAR_SURFACES = setOf(SurfaceId.SEARCH_BAR, SurfaceId.DRAWER_SEARCH_BAR)
@@ -413,7 +413,10 @@ object StylePickerSheet {
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = context.dp(10) }
 
+        var selectedSwatch: ImageView? = null
+
         fun addRow(labelRes: Int, fill: (LinearLayout) -> Unit) {
+            selectedSwatch = null
             binding.swatchRows.addView(rowLabel(context, labelRes), labelParams)
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -421,9 +424,16 @@ object StylePickerSheet {
                 setPadding(0, context.dp(6), 0, context.dp(2))
             }
             fill(row)
+            val selectedInRow = selectedSwatch
             val scroller = HorizontalScrollView(context).apply {
                 isHorizontalScrollBarEnabled = false
                 addView(row)
+                post {
+                    selectedInRow?.let { selected ->
+                        val target = (selected.left - (width - selected.width) / 2).coerceAtLeast(0)
+                        scrollTo(target, 0)
+                    }
+                }
             }
             binding.swatchRows.addView(
                 scroller,
@@ -442,23 +452,23 @@ object StylePickerSheet {
             addRow(labelRes) { row ->
                 ToneRamp.TONES.forEach { tone ->
                     val spec = ColorSpec(role = role, tone = tone)
-                    row.addView(
-                        swatch(
-                            context, palette.tone(role, tone), isSelected(spec),
-                            context.getString(R.string.a11y_swatch_tone, context.getString(labelRes), tone)
-                        ) { onPick(spec) },
-                        swatchParams
-                    )
+                    val selected = isSelected(spec)
+                    val item = swatch(
+                        context, palette.tone(role, tone), selected,
+                        context.getString(R.string.a11y_swatch_tone, context.getString(labelRes), tone)
+                    ) { onPick(spec) }
+                    if (selected) selectedSwatch = item
+                    row.addView(item, swatchParams)
                 }
             }
         }
         addRow(R.string.style_fixed_colors) { row ->
             FIXED.forEach { hex ->
                 val spec = ColorSpec(fixed = hex)
-                row.addView(
-                    swatch(context, Color.parseColor(hex), isSelected(spec), hex) { onPick(spec) },
-                    swatchParams
-                )
+                val selected = isSelected(spec)
+                val item = swatch(context, Color.parseColor(hex), selected, hex) { onPick(spec) }
+                if (selected) selectedSwatch = item
+                row.addView(item, swatchParams)
             }
         }
     }
