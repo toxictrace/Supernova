@@ -57,6 +57,8 @@ class StyleEngineTest {
                 SurfaceId.DRAWER to SurfaceStyle(
                     surface = ColorSpec(role = PaletteRole.NEUTRAL, tone = 20),
                     alpha = 0.85f,
+                    textAlpha = 0.65f,
+                    accentAlpha = 0.35f,
                     cornerRadii = listOf(24f, 24f, 0f, 0f)
                 ),
                 SurfaceId.DOCK to SurfaceStyle(surface = ColorSpec(fixed = "#80112233")),
@@ -83,6 +85,10 @@ class StyleEngineTest {
         val cleared = config.with(SurfaceId.FOLDER, SurfaceStyle())
         assertEquals(StyleConfig.EMPTY, cleared)
         assertEquals("", cleared.encode())
+        val opacityOnly = StyleConfig.EMPTY.with(
+            SurfaceId.POPUP, SurfaceStyle(textAlpha = 0.4f, accentAlpha = 0.7f)
+        )
+        assertEquals(opacityOnly, StyleConfig.decode(opacityOnly.encode()))
         // A minimum contrast alone keeps its surface in the config.
         assertEquals(1, StyleConfig.EMPTY.with(SurfaceId.DOCK, SurfaceStyle(minContrast = 30)).surfaces.size)
     }

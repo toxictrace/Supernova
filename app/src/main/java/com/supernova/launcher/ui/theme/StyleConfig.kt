@@ -37,6 +37,9 @@ data class SurfaceStyle(
     val accent: ColorSpec = ColorSpec(),
     // null = keep the surface's legacy/default opacity.
     val alpha: Float? = null,
+    // Independent opacity for the Text and Accent slots. Null keeps each color's own alpha.
+    val textAlpha: Float? = null,
+    val accentAlpha: Float? = null,
     // Corner radii in dp, [topLeft, topRight, bottomRight, bottomLeft];
     // null = the surface's built-in shape.
     val cornerRadii: List<Float>? = null,
@@ -46,7 +49,8 @@ data class SurfaceStyle(
 ) {
     fun isEmpty(): Boolean =
         surface.isDefault && text.isDefault && accent.isDefault &&
-            alpha == null && cornerRadii == null && minContrast == null
+            alpha == null && textAlpha == null && accentAlpha == null &&
+            cornerRadii == null && minContrast == null
 }
 
 // The whole per-surface style document, persisted as one JSON pref

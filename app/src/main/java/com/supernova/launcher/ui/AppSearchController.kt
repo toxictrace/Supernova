@@ -108,6 +108,8 @@ class AppSearchController(
         ).apply { bottomMargin = dp(4) })
 
         val tabs = TabLayout(activity).apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            setTabBackgroundResource(android.R.color.transparent)
             tabMode = TabLayout.MODE_SCROLLABLE
             tabGravity = TabLayout.GRAVITY_START
             setTabTextColors(textColor, textColor)
@@ -145,6 +147,7 @@ class AppSearchController(
         }
         root.addView(tabs)
         (tabs.getChildAt(0) as? ViewGroup)?.let { tabStrip ->
+            tabStrip.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             for (index in 0 until tabStrip.childCount) {
                 val tabView = tabStrip.getChildAt(index) as? ViewGroup ?: continue
                 tabView.setPadding(dp(12), 0, dp(12), 0)

@@ -142,7 +142,7 @@ object StylePickerSheet {
         // The Dock's and drawer's opacity is a pref, not the style: the
         // bar's position stands in for the write still on its way.
         fun resolvedNow(): com.supernova.launcher.ui.theme.ResolvedSurface {
-            val base = if (SurfaceOpacity.handles(surfaceId)) {
+            val base = if (SurfaceOpacity.handles(surfaceId) && slot == Slot.SURFACE) {
                 SurfaceOpacity.preview(prefs, surfaceId, binding.opacitySeek.progress)
             } else {
                 prefs
@@ -150,6 +150,23 @@ object StylePickerSheet {
             return Styles.resolve(
                 context, base.copy(styleConfig = config.with(surfaceId, style).encode())
             ).of(surfaceId)
+        }
+
+        fun currentOpacity(): Int = when (slot) {
+            Slot.SURFACE -> if (SurfaceOpacity.handles(surfaceId)) {
+                SurfaceOpacity.effective(prefs, surfaceId)
+            } else {
+                (resolvedNow().surface ushr ALPHA_SHIFT) * FULL_OPACITY / ALPHA_MAX
+            }
+            Slot.TEXT -> (resolvedNow().text ushr ALPHA_SHIFT) * FULL_OPACITY / ALPHA_MAX
+            Slot.ACCENT -> (resolvedNow().accent ushr ALPHA_SHIFT) * FULL_OPACITY / ALPHA_MAX
+        }
+
+        fun renderOpacity() {
+            binding.opacitySeek.min = if (slot == Slot.SURFACE) SurfaceOpacity.min(surfaceId) else 0
+            val shown = currentOpacity().coerceIn(binding.opacitySeek.min, FULL_OPACITY)
+            binding.opacitySeek.progress = shown
+            binding.opacityValue.text = context.getString(R.string.opacity_percent, shown)
         }
 
         fun renderStrip() {
@@ -206,7 +223,7 @@ object StylePickerSheet {
             // The home background is transparent by default and the drawer's
             // field a faint tint, and a color picked without an opacity is
             // drawn solid: the slider shows which.
-            val defaultOpacity = if (labelSlot) null else when (surfaceId) {
+            val defaultOpacity = if (labelSlot || slot != Slot.SURFACE) null else when (surfaceId) {
                 SurfaceId.HOME -> 0
                 SurfaceId.DRAWER_SEARCH_BAR -> DRAWER_FIELD_OPACITY
                 else -> null
@@ -284,6 +301,7 @@ object StylePickerSheet {
             renderSlotButtons()
             renderSwatches()
             renderContrast()
+            renderOpacity()
             showCustom()
         }
 
@@ -296,9 +314,12 @@ object StylePickerSheet {
         // the opacity on Surface (#298), the minimum contrast on Text (#349).
         binding.styleDefault.setOnClickListener {
             val surfaceSlot = slot == Slot.SURFACE
-            if (slot == Slot.TEXT) style = style.copy(minContrast = null)
+            when (slot) {
+                Slot.SURFACE -> style = style.copy(alpha = null)
+                Slot.TEXT -> style = style.copy(textAlpha = null, minContrast = null)
+                Slot.ACCENT -> style = style.copy(accentAlpha = null)
+            }
             if (surfaceSlot) {
-                style = style.copy(alpha = null)
                 if (SurfaceOpacity.handles(surfaceId)) {
                     val percent = SurfaceOpacity.defaultPercent(surfaceId)
                     SurfaceOpacity.setPref(viewModel, surfaceId, percent)
@@ -307,6 +328,7 @@ object StylePickerSheet {
             }
             onPick(ColorSpec())
             renderContrast()
+            renderOpacity()
             if (surfaceSlot && binding.opacityRow.isVisible) {
                 val shown = if (SurfaceOpacity.handles(surfaceId)) {
                     binding.opacitySeek.progress
@@ -319,13 +341,16 @@ object StylePickerSheet {
         }
 
         fun applyOpacity(percent: Int) {
-            if (SurfaceOpacity.handles(surfaceId)) {
-                // The page's own slider holds it; one stored here
-                // before goes, or it would override that for good.
-                SurfaceOpacity.setPref(viewModel, surfaceId, percent)
-                style = style.copy(alpha = null)
-            } else {
-                style = style.copy(alpha = percent / 100f)
+            when (slot) {
+                Slot.SURFACE -> if (SurfaceOpacity.handles(surfaceId)) {
+                    // The page's own slider remains the source for Drawer and Dock.
+                    SurfaceOpacity.setPref(viewModel, surfaceId, percent)
+                    style = style.copy(alpha = null)
+                } else {
+                    style = style.copy(alpha = percent / 100f)
+                }
+                Slot.TEXT -> style = style.copy(textAlpha = percent / 100f)
+                Slot.ACCENT -> style = style.copy(accentAlpha = percent / 100f)
             }
             persist()
             renderStrip()
@@ -335,8 +360,9 @@ object StylePickerSheet {
         // an AARRGGBB hex sets the surface's opacity as well.
         custom = CustomColorRows(context, binding.customRows) { rgb, alpha ->
             onPick(ColorSpec(fixed = String.format(java.util.Locale.ROOT, "#%08X", rgb or OPAQUE)), fromCustom = true)
-            if (alpha != null && slot == Slot.SURFACE && binding.opacityRow.isVisible) {
-                val percent = (alpha * 100 / 255).coerceAtLeast(binding.opacitySeek.min)
+            if (alpha != null && binding.opacityRow.isVisible) {
+                val minimum = if (slot == Slot.SURFACE) SurfaceOpacity.min(surfaceId) else 0
+                val percent = (alpha * 100 / 255).coerceAtLeast(minimum)
                 binding.opacitySeek.progress = percent
                 binding.opacityValue.text = context.getString(R.string.opacity_percent, percent)
                 applyOpacity(percent)
@@ -349,17 +375,6 @@ object StylePickerSheet {
         }
 
         if (surfaceId in OPACITY_SURFACES) {
-            // The resolved surface's alpha channel already folds style.alpha
-            // over the legacy per-surface opacity default.
-            val shared = SurfaceOpacity.handles(surfaceId)
-            val initial = if (shared) {
-                SurfaceOpacity.effective(prefs, surfaceId)
-            } else {
-                (Styles.resolve(context, prefs).of(surfaceId).surface ushr 24) * 100 / 255
-            }
-            binding.opacitySeek.min = SurfaceOpacity.min(surfaceId)
-            binding.opacitySeek.progress = initial
-            binding.opacityValue.text = context.getString(R.string.opacity_percent, initial)
             binding.opacitySeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                     binding.opacityValue.text = context.getString(R.string.opacity_percent, progress)
@@ -369,6 +384,7 @@ object StylePickerSheet {
 
                 override fun onStopTrackingTouch(seekBar: SeekBar) = applyOpacity(seekBar.progress)
             })
+            renderOpacity()
         } else {
             binding.opacityRow.visibility = android.view.View.GONE
         }

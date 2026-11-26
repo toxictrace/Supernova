@@ -131,11 +131,13 @@ object Styles {
                 surfaceBase
             }
             val styledText = colorFor(style.text, palette)
+            val resolvedText = autoText(styledText, surfaceBase, alpha, textFor, style.minContrast)
+                ?: Contrast.ensure(styledText ?: defaultText, surfaceBase, style.minContrast)
+            val resolvedAccent = colorFor(style.accent, palette) ?: defaultAccent
             return ResolvedSurface(
                 surface = surface,
-                text = autoText(styledText, surfaceBase, alpha, textFor, style.minContrast)
-                    ?: Contrast.ensure(styledText ?: defaultText, surfaceBase, style.minContrast),
-                accent = colorFor(style.accent, palette) ?: defaultAccent,
+                text = withOpacity(resolvedText, style.textAlpha),
+                accent = withOpacity(resolvedAccent, style.accentAlpha),
                 // Only the folder window has a radius, on the Folders page. One
                 // an older Style tab stored for another surface goes unread.
                 cornerRadiiDp = style.cornerRadii?.takeIf { id == SurfaceId.FOLDER }?.let { radii ->
@@ -212,6 +214,12 @@ object Styles {
         } else {
             { base, alpha -> drawerText(base, alpha, onWallpaper) }
         }
+
+    private fun withOpacity(color: Int, opacity: Float?): Int {
+        if (opacity == null) return color
+        val alpha = ((color ushr 24) * opacity.coerceIn(0f, 1f)).toInt()
+        return (color and 0x00FFFFFF) or (alpha shl 24)
+    }
 
     private fun colorFor(spec: ColorSpec, palette: TonalPalette): Int? = when {
         spec.fixed != null -> runCatching { android.graphics.Color.parseColor(spec.fixed) }.getOrNull()
