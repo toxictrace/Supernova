@@ -1218,6 +1218,16 @@ object SettingsCatalogue {
                 )
             )
         ),
+        SettingsSection(
+            R.string.settings_section_app_search,
+            listOf(
+                SettingItem.Header(R.string.group_tabs),
+                rows.choice(
+                    R.string.drawer_tab_style, DrawerTabStyle.entries,
+                    { it.appSearchTabStyle }, { EnumLabels.of(it) }
+                ) { viewModel.set(Pref.appSearchTabStyle, it) }
+            )
+        ),
         // The Drawer groups page, opened from the App drawer page's row;
         // back returns there. It has no rows of its own: SettingsActivity
         // shows DrawerGroupsPane in the list's place.

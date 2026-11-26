@@ -1010,7 +1010,8 @@ class SettingsActivity : AppCompatActivity() {
                 R.string.settings_section_folders, R.string.settings_section_feed
             ),
             R.string.settings_group_customize to listOf(
-                R.string.settings_section_icons, R.string.gestures, R.string.settings_section_search
+                R.string.settings_section_icons, R.string.gestures, R.string.settings_section_search,
+                R.string.settings_section_app_search
             ),
             R.string.settings_group_app to listOf(
                 R.string.about, R.string.settings_section_backup, R.string.permissions, R.string.labs

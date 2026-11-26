@@ -93,10 +93,29 @@ class AppSearchController(
             tabMode = TabLayout.MODE_FIXED
             tabGravity = TabLayout.GRAVITY_FILL
             setTabTextColors(textColor, textColor)
-            setSelectedTabIndicatorColor(accentColor)
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
             addTab(newTab().setText(R.string.app_search_updated))
+            if (prefs.appSearchTabStyle == DrawerTabStyle.BUBBLE) {
+                val pill = GradientDrawable().apply {
+                    cornerRadius = dp(18).toFloat()
+                    setColor(android.graphics.Color.WHITE)
+                }
+                val inset = dp(4)
+                setSelectedTabIndicator(
+                    android.graphics.drawable.InsetDrawable(pill, 0, inset, 0, inset)
+                )
+                setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_STRETCH)
+                isTabIndicatorFullWidth = true
+                setSelectedTabIndicatorColor(
+                    androidx.core.graphics.ColorUtils.setAlphaComponent(accentColor, 42)
+                )
+            } else {
+                setSelectedTabIndicator(R.drawable.tab_indicator_drawer)
+                setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_BOTTOM)
+                isTabIndicatorFullWidth = false
+                setSelectedTabIndicatorColor(accentColor)
+            }
         }
         root.addView(tabs)
 
@@ -142,6 +161,37 @@ class AppSearchController(
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
+        list.addOnItemTouchListener(
+            TabSwipeDrag(
+                list,
+                swipeable = { tabs.tabCount > 1 },
+                hasTab = { delta ->
+                    (tabs.selectedTabPosition + delta) in 0 until tabs.tabCount
+                },
+                onCommit = { delta, remaining, _ ->
+                    val next = tabs.selectedTabPosition + delta
+                    if (next in 0 until tabs.tabCount) {
+                        tabs.getTabAt(next)?.select()
+                        list.animate().cancel()
+                        list.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                        list.translationX = delta * remaining
+                        list.alpha = 0.5f
+                        list.animate().translationX(0f).alpha(1f)
+                            .setDuration(180L)
+                            .withEndAction { list.setLayerType(View.LAYER_TYPE_NONE, null) }
+                            .start()
+                    }
+                },
+                animate = { true },
+                onMoving = { moving ->
+                    if (!moving) {
+                        list.translationX = 0f
+                        list.alpha = 1f
+                        list.setLayerType(View.LAYER_TYPE_NONE, null)
+                    }
+                }
+            )
+        )
 
         tabs.getTabAt(selectedTab)?.select()
         refresh()
@@ -235,9 +285,7 @@ class AppSearchController(
                 )
             }
             cell.addView(icon)
-            cell.addView(label, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ))
+            cell.addView(label)
             return Holder(cell, icon, label)
         }
 

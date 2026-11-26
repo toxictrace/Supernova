@@ -324,6 +324,7 @@ object Pref {
     val homeReturnToDefaultPage = bool("home_return_to_default_page")
     val searchBarConfig = text("search_bar_config")
     val appSearchSelectedTab = int("app_search_selected_tab", 0..2)
+    val appSearchTabStyle = choice("app_search_tab_style", DrawerTabStyle.entries)
     val appSearchBgColor = text("app_search_bg_color")
     val appSearchTextColor = text("app_search_text_color")
     val appSearchAccentColor = text("app_search_accent_color")

@@ -428,6 +428,7 @@
     <string name="app_search_background_color">Цвет фона</string>
     <string name="app_search_text_color">Цвет шрифта</string>
     <string name="app_search_accent_color">Акцент</string>
+    <string name="settings_section_app_search">Настройка поиска Supernova</string>
     <string name="action_recents">Недавние приложения</string>
     <string name="action_quick_settings">Быстрые настройки</string>
     <string name="action_assistant">Ассистент</string>

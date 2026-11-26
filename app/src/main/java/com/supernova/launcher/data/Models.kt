@@ -510,6 +510,8 @@ data class LauncherPrefs(
     val searchBarConfig: String = "",
     // The app-only search keeps its last selected category between openings.
     val appSearchSelectedTab: Int = 0,
+    // The app-only search uses the same Classic/Bubble tab treatment as the drawer.
+    val appSearchTabStyle: DrawerTabStyle = DrawerTabStyle.CLASSIC,
     // Empty colors follow the current theme's surface and primary text.
     val appSearchBgColor: String = "",
     val appSearchTextColor: String = "",

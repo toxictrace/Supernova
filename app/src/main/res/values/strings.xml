@@ -418,6 +418,7 @@
     <string name="app_search_background_color">Background color</string>
     <string name="app_search_text_color">Font color</string>
     <string name="app_search_accent_color">Accent</string>
+    <string name="settings_section_app_search">Supernova search settings</string>
     <string name="action_recents">Recent apps</string>
     <string name="action_quick_settings">Quick settings</string>
     <string name="action_assistant">Assistant</string>
