@@ -23,8 +23,8 @@
     <string name="remove_from_folder">Переместить на главный экран</string>
     <string name="widget">Виджет</string>
     <string name="widget_resize">Изменить размер</string>
-    <string name="large_icon">Крупный иконка</string>
-    <string name="normal_icon">Обычный иконка</string>
+    <string name="large_icon">Крупная иконка</string>
+    <string name="normal_icon">Обычная иконка</string>
     <string name="padding">Отступ</string>
     <string name="bring_to_front">На передний план</string>
     <string name="send_to_back">На задний план</string>
@@ -215,7 +215,7 @@
     <string name="drawer_hide_all_tab">Скрыть вкладку «Все»</string>
     <string name="edit">Изменить</string>
     <string name="hide_label">Скрыть подпись</string>
-    <string name="change_icon">Изменить иконка</string>
+    <string name="change_icon">Изменить иконку</string>
     <string name="select_apps">Выбрать приложения</string>
     <string name="checklist_hide_placed">Скрыть приложения из других групп</string>
     <string name="drawer_tab_empty">В этой вкладке пока нет приложений</string>
@@ -246,10 +246,10 @@
         <item quantity="other">Перемещено в меню приложений. %d ярлыка остались на главном экране</item>
     </plurals>
     <string name="reshape">Изменить форму</string>
-    <string name="reshape_summary">Подогнать иконка под выбранную форму</string>
+    <string name="reshape_summary">Подогнать иконку под выбранную форму</string>
     <string name="folder_menu">Параметры папки</string>
     <string name="reset">Сбросить</string>
-    <string name="pick_icon">Выбрать иконка</string>
+    <string name="pick_icon">Выбрать иконку</string>
     <string name="no_icons_in_pack">В этом паке иконок ничего не найдено</string>
     <string name="search_icons_hint">Поиск иконок</string>
     <string name="option_default">По умолчанию</string>
@@ -329,7 +329,7 @@
     <string name="badge_test_title">Тестовое уведомление</string>
     <string name="badge_test_text">На иконке настроек Supernova появился счётчик. Нажмите, чтобы очистить его.</string>
     <string name="badge_test_blocked">Supernova не разрешено отправлять уведомления</string>
-    <string name="badge_test_badges_off">Уведомление отправлено. Включите счётчики уведомлений, чтобы увидеть иконка.</string>
+    <string name="badge_test_badges_off">Уведомление отправлено. Включите счётчики уведомлений, чтобы увидеть иконку.</string>
     <string name="shortcut_unusable">Не удалось использовать этот ярлык</string>
     <string name="pos_top_right">Вверху справа</string>
     <string name="pos_top_left">Вверху слева</string>
@@ -683,7 +683,7 @@
     <string name="normalize_icon_size">Нормализовать размер иконок</string>
     <string name="normalize_icon_size_summary">Уменьшать крупные иконки до размеров, соответствующих рекомендациям Material Design</string>
     <string name="drawer_pull_to_search">Потянуть для поиска</string>
-    <string name="folder_prioritize_first">Выделять первый иконка</string>
+    <string name="folder_prioritize_first">Выделять первую иконку</string>
     <string name="folder_prioritize_first_summary">Первое приложение отображается крупно, остальные — мелко</string>
     <string name="label_customize">Настроить подписи</string>
     <string name="folder_icon_scale">Размер иконок</string>
@@ -776,7 +776,7 @@
     <string name="labs_export_icons_summary">Сохранить все иконки приложений и файл appfilter.xml в ZIP-архив</string>
     <string name="labs_export_icons_failed">Не удалось экспортировать иконки: %1$s</string>
     <plurals name="labs_icons_exported">
-        <item quantity="one">Экспортирован %d иконка</item><item quantity="few">Экспортировано %d иконки</item><item quantity="many">Экспортировано %d иконок</item><item quantity="other">Экспортировано %d иконки</item>
+        <item quantity="one">Экспортирована %d иконка</item><item quantity="few">Экспортировано %d иконки</item><item quantity="many">Экспортировано %d иконок</item><item quantity="other">Экспортировано %d иконки</item>
     </plurals>
     <string name="labs_clear_icon_cache">Очистить кэш иконок</string>
     <string name="permissions">Разрешения</string>
@@ -902,7 +902,7 @@
     <string name="page_number">Страница %1$d</string>
     <string name="launch_animation">Анимация запуска приложения</string>
     <string name="anim_system">Системная</string>
-    <string name="anim_adaptive_icon">Адаптивный иконка</string>
+    <string name="anim_adaptive_icon">Адаптивная иконка</string>
     <string name="anim_circle">Круг</string>
     <string name="anim_reveal">Проявление</string>
     <string name="anim_slide_up">Сдвиг вверх</string>
@@ -1095,7 +1095,7 @@
     <string name="variant_themed">Тематический</string>
     <string name="variant_original">Исходный</string>
     <string name="variant_default_hint">Использует настройки лаунчера: форму иконки, стекло и тематические иконки.</string>
-    <string name="variant_themed_hint">Одноцветный иконка на окрашенной подложке, даже если тематические иконки отключены.</string>
+    <string name="variant_themed_hint">Одноцветная иконка на окрашенной подложке, даже если тематические иконки отключены.</string>
     <string name="variant_original_hint">Иконка в исходном виде. Применяется только выбранная здесь форма.</string>
     <string name="edit_preview">Предпросмотр</string>
     <string name="edit_name">Название</string>
