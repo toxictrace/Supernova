@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import androidx.core.content.edit
@@ -44,6 +45,8 @@ class CustomColorRows(
 
     // The last color made here, kept for Recent when the sheet closes.
     private var made: Int? = null
+    private var selectedColor: Int? = null
+    private var selectedCustom = false
 
     private val color: Int get() = ColorUtils.HSLToColor(hsl) or OPAQUE
 
@@ -76,9 +79,12 @@ class CustomColorRows(
     }
 
     // Shows a color picked elsewhere (a swatch, Default, the stored value).
-    fun show(rgb: Int) {
+    fun show(rgb: Int, customSelection: Boolean = false) {
+        selectedColor = rgb or OPAQUE
+        selectedCustom = customSelection
         ColorUtils.colorToHSL(rgb or OPAQUE, hsl)
         render()
+        showRecent()
     }
 
     // The sheet is closing: the last color made here joins Recent.
@@ -112,6 +118,9 @@ class CustomColorRows(
     private fun apply(alpha: Int?) {
         render()
         made = color
+        selectedColor = color
+        selectedCustom = true
+        showRecent()
         onColor(color, alpha)
     }
 
@@ -161,27 +170,45 @@ class CustomColorRows(
         apply(alpha)
     }
 
-    // The last few custom colors, newest first; none yet hides the row.
+    // Recent colors, with a check on the current custom color.
     private fun showRecent() {
         val recent = readRecent()
-        binding.customRecentLabel.isVisible = recent.isNotEmpty()
-        binding.customRecentRow.isVisible = recent.isNotEmpty()
+        val selected = selectedColor.takeIf { selectedCustom }
+        val visible = if (selected != null && selected !in recent) listOf(selected) + recent else recent
+        binding.customRecentLabel.isVisible = visible.isNotEmpty()
+        binding.customRecentRow.isVisible = visible.isNotEmpty()
+        binding.customRecentRow.removeAllViews()
         val size = context.dp(SWATCH_DP)
-        recent.forEach { rgb ->
-            val dot = View(context).apply {
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(rgb)
-                    setStroke(context.dp(1), context.getColor(R.color.settingsDivider))
-                }
+        visible.forEach { rgb ->
+            val item = FrameLayout(context).apply {
                 contentDescription = String.format(Locale.ROOT, "#%06X", rgb and RGB_MASK)
+                val dot = View(context).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(rgb)
+                        setStroke(context.dp(1), context.getColor(R.color.settingsDivider))
+                    }
+                }
+                addView(dot, FrameLayout.LayoutParams(size, size))
+                if (rgb == selected) {
+                    val check = ImageView(context).apply {
+                        setImageResource(R.drawable.ic_check)
+                        val bright = Color.red(rgb) * 299 + Color.green(rgb) * 587 + Color.blue(rgb) * 114 > 160_000
+                        setColorFilter(if (bright) Color.BLACK else Color.WHITE)
+                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                        setPadding(context.dp(10), context.dp(10), context.dp(10), context.dp(10))
+                    }
+                    addView(check, FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+                    ))
+                }
                 setOnClickListener {
                     ColorUtils.colorToHSL(rgb, hsl)
                     hex.clearFocus()
                     apply(null)
                 }
             }
-            binding.customRecentRow.addView(dot, LinearLayout.LayoutParams(size, size).apply {
+            binding.customRecentRow.addView(item, LinearLayout.LayoutParams(size, size).apply {
                 marginEnd = context.dp(SWATCH_GAP_DP)
             })
         }

@@ -183,7 +183,9 @@ object StylePickerSheet {
                     Slot.ACCENT -> resolved.accent
                 }
             }
-            custom.show(color or OPAQUE)
+            val spec = activeSpec()
+            val isCustomColor = spec.fixed != null && FIXED.none { it.equals(spec.fixed, ignoreCase = true) }
+            custom.show(color or OPAQUE, customSelection = isCustomColor)
         }
 
         fun onPick(spec: ColorSpec, fromCustom: Boolean = false) {

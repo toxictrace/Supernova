@@ -67,12 +67,13 @@ class AppSearchController(
                     )
                 )
                 cornerRadius = dp(16).toFloat()
-                val inverseStroke = android.graphics.Color.rgb(
-                    255 - android.graphics.Color.red(backgroundColor),
-                    255 - android.graphics.Color.green(backgroundColor),
-                    255 - android.graphics.Color.blue(backgroundColor)
+                val effectiveSurface = androidx.core.graphics.ColorUtils.compositeColors(
+                    backgroundColor, activity.getColor(R.color.background)
                 )
-                setStroke(dp(1), inverseStroke)
+                val outlineColor = if (
+                    androidx.core.graphics.ColorUtils.calculateLuminance(effectiveSurface) >= 0.5
+                ) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                setStroke(dp(1), outlineColor)
             }
         }
         val input = EditText(activity).apply {
@@ -115,7 +116,13 @@ class AppSearchController(
             isInlineLabel = true
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
-            addTab(newTab().setText(R.string.app_search_updated))
+            addTab(newTab().setCustomView(TextView(activity).apply {
+                text = activity.getString(R.string.app_search_updated).replace(" / ", " /\\n")
+                gravity = Gravity.CENTER
+                maxLines = 2
+                textSize = 14f
+                setTextColor(textColor)
+            }))
             if (prefs.appSearchTabStyle == DrawerTabStyle.BUBBLE) {
                 val pill = GradientDrawable().apply {
                     cornerRadius = dp(18).toFloat()
