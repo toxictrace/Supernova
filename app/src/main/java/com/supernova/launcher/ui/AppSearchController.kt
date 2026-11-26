@@ -1,8 +1,8 @@
 package com.supernova.launcher.ui
 
 import android.app.Activity
+import android.app.Dialog
 import android.content.Intent
-import android.graphics.Typeface
 import android.net.Uri
 import android.text.Editable
 import android.text.TextWatcher
@@ -11,12 +11,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.graphics.drawable.GradientDrawable
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.tabs.TabLayout
 import com.supernova.launcher.R
 import com.supernova.launcher.data.LaunchableApp
@@ -29,7 +29,7 @@ class AppSearchController(
     private val viewModel: LauncherViewModel,
     private val onLaunchApp: (LaunchableApp) -> Unit
 ) {
-    private var dialog: BottomSheetDialog? = null
+    private var dialog: Dialog? = null
     private var query = ""
     private var selectedTab = TAB_FREQUENT
 
@@ -41,6 +41,12 @@ class AppSearchController(
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(16))
+            background = GradientDrawable().apply {
+                setColor(activity.getColor(R.color.surface))
+                cornerRadius = dp(20).toFloat()
+            }
+            elevation = dp(8).toFloat()
+            clipToOutline = true
         }
         val searchRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -56,13 +62,19 @@ class AppSearchController(
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
         }
-        val play = TextView(activity).apply {
-            text = activity.getString(R.string.app_search_play_store)
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            setTextColor(activity.getColor(R.color.textPrimary))
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+        val play = ImageView(activity).apply {
+            contentDescription = activity.getString(R.string.app_search_play_store)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            val icon = runCatching {
+                activity.packageManager.getApplicationIcon("com.android.vending")
+            }.getOrElse {
+                androidx.appcompat.content.res.AppCompatResources.getDrawable(
+                    activity, R.drawable.ic_play_store
+                )
+            }
+            setImageDrawable(icon)
             setOnClickListener { openPlayStore(input.text?.toString().orEmpty()) }
         }
         searchRow.addView(input)
@@ -123,10 +135,24 @@ class AppSearchController(
         })
 
         refresh()
-        dialog = BottomSheetDialog(activity).also {
+        dialog = Dialog(activity).also {
             it.setContentView(root)
             it.setOnDismissListener { dialog = null }
             it.show()
+            it.window?.apply {
+                setBackgroundDrawableResource(android.R.color.transparent)
+                setDimAmount(0.28f)
+                addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                attributes = attributes.apply { y = dp(12) }
+                setSoftInputMode(
+                    android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                )
+            }
         }
         input.requestFocus()
     }
