@@ -265,16 +265,16 @@ class IconRenderer(context: Context) {
             ?: android.graphics.Rect(0, 0, size, size)
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
-        // The circular artwork occupies 80% of the selected plate.
-        // Square artwork is enlarged by 10% before circular clipping.
-        val radius = (size * 0.40f).roundToInt().coerceAtLeast(1)
+        // The circular artwork occupies 75% of the selected plate.
+        // Square artwork is enlarged by 21% before circular clipping.
+        val radius = (size * 0.375f).roundToInt().coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
         val scale = if (isAlreadyRound) {
             minOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
         } else {
-            maxOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight) * 1.10f
+            maxOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight) * 1.21f
         }
         val targetWidth = sourceWidth * scale
         val targetHeight = sourceHeight * scale
