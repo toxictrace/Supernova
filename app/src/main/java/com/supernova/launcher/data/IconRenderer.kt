@@ -265,12 +265,9 @@ class IconRenderer(context: Context) {
             ?: android.graphics.Rect(0, 0, size, size)
         val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
 
-        // Keep a small, density-aware border around the circular artwork.
-        // The selected shape clips the finished composition; using its strict
-        // inscribed circle made icons tiny on rounded and polygonal shapes.
-        val circleInset = (2f * resources.displayMetrics.density * resolutionScale)
-            .roundToInt().coerceAtLeast(1)
-        val radius = (size / 2 - circleInset).coerceAtLeast(1)
+        // The circular artwork occupies 90% of the selected plate.
+        // The final shape clip keeps the remaining border even on custom shapes.
+        val radius = (size * 0.45f).roundToInt().coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
@@ -436,16 +433,16 @@ class IconRenderer(context: Context) {
             var high = baseScale
             var highCoverage = coverage(high)
             var attempts = 0
-            while (highCoverage < 0.995f && attempts < 12) {
+            while (highCoverage < 1f && attempts < 16) {
                 low = high
                 high *= 2f
                 highCoverage = coverage(high)
                 attempts++
             }
-            if (highCoverage >= 0.995f) {
+            if (highCoverage >= 1f) {
                 repeat(10) {
                     val middle = (low + high) / 2f
-                    if (coverage(middle) >= 0.995f) high = middle else low = middle
+                    if (coverage(middle) >= 1f) high = middle else low = middle
                 }
             }
 
