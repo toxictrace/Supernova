@@ -156,6 +156,7 @@ object Styles {
         )
         val appSearchSurface = LabelStyler.parseColor(prefs.appSearchBgColor, themeSurface)
         val appSearchText = LabelStyler.parseColor(prefs.appSearchTextColor, themeText)
+        val appSearchAccent = LabelStyler.parseColor(prefs.appSearchAccentColor, accent)
 
         val drawer = resolved(
             SurfaceId.DRAWER, drawerLegacy, themeText, prefs.drawerBgOpacity,
@@ -190,7 +191,7 @@ object Styles {
                     SurfaceId.SETTINGS, context.getColor(R.color.background), themeText, null
                 ),
                 SurfaceId.APP_SEARCH to resolved(
-                    SurfaceId.APP_SEARCH, appSearchSurface, appSearchText, null, accent
+                    SurfaceId.APP_SEARCH, appSearchSurface, appSearchText, null, appSearchAccent
                 ),
                 SurfaceId.HOME to resolved(
                     SurfaceId.HOME, android.graphics.Color.TRANSPARENT, onWallpaper, null
