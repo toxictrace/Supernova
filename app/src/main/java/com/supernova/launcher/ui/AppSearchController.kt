@@ -109,7 +109,7 @@ class AppSearchController(
 
         val list = RecyclerView(activity).apply {
             layoutManager = GridLayoutManager(activity, 4)
-            adapter = AppAdapter()
+            adapter = AppAdapter(textColor)
             overScrollMode = View.OVER_SCROLL_NEVER
             setPadding(0, dp(8), 0, dp(8))
             clipToPadding = false
@@ -205,7 +205,7 @@ class AppSearchController(
         }
     }
 
-    private inner class AppAdapter : RecyclerView.Adapter<AppAdapter.Holder>() {
+    private inner class AppAdapter(private val textColor: Int) : RecyclerView.Adapter<AppAdapter.Holder>() {
         private var items: List<LaunchableApp> = emptyList()
 
         fun submit(next: List<LaunchableApp>) {
