@@ -290,7 +290,8 @@ class IconRenderer(context: Context) {
                 for (x in 0 until size) {
                     val dx = x + 0.5f - center
                     val dy = y + 0.5f - center
-                    if (dx * dx + dy * dy <= radius * radius &&
+                    val checkRadius = (radius - 1.5f).coerceAtLeast(0f)
+                    if (dx * dx + dy * dy <= checkRadius * checkRadius &&
                         Color.alpha(pixels[y * size + x]) < 128
                     ) {
                         hasEmptyPixels = true
