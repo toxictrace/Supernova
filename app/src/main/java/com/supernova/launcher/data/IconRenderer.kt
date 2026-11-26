@@ -334,6 +334,7 @@ class IconRenderer(context: Context) {
         completedCrop.recycle()
 
 
+        val output = createBitmap(size, size)
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
             if (back == null) {
