@@ -104,13 +104,9 @@ class AppSearchController(
             tabMode = TabLayout.MODE_SCROLLABLE
             tabGravity = TabLayout.GRAVITY_START
             setBackgroundColor(backgroundColor)
-            setTabTextAppearance(R.style.TextAppearance_Supernova_DrawerTab)
             setTabTextColors(
                 androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0xB3), textColor
             )
-            setTabMinWidth(dp(48))
-            setTabPaddingStart(dp(12))
-            setTabPaddingEnd(dp(12))
             setTabRippleColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT))
             isInlineLabel = true
             addTab(newTab().setText(R.string.app_search_frequent))
@@ -138,6 +134,21 @@ class AppSearchController(
             }
         }
         root.addView(tabs)
+        (tabs.getChildAt(0) as? ViewGroup)?.let { tabStrip ->
+            for (index in 0 until tabStrip.childCount) {
+                val tabView = tabStrip.getChildAt(index) as? ViewGroup ?: continue
+                tabView.setPadding(dp(12), 0, dp(12), 0)
+                for (childIndex in 0 until tabView.childCount) {
+                    val child = tabView.getChildAt(childIndex)
+                    if (child is android.widget.TextView) {
+                        child.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+                        child.setTextColor(
+                            androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0xB3)
+                        )
+                    }
+                }
+            }
+        }
 
         val list = RecyclerView(activity).apply {
             layoutManager = GridLayoutManager(activity, 4)
