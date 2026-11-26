@@ -270,27 +270,31 @@ class IconRenderer(context: Context) {
             addCircle(center, center, radius, Path.Direction.CW)
         }
         val artworkPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        var croppedArtwork = createBitmap(size, size)
-        Canvas(croppedArtwork).withClip(circle) {
-            drawBitmap(
-                artwork,
-                artworkBounds,
-                RectF(0f, 0f, size.toFloat(), size.toFloat()),
-                artworkPaint
-            )
-        }
-
         val pixels = IntArray(size * size)
-        var hasEmptyPixels: Boolean
+        val checkRadius = (radius - 1.5f).coerceAtLeast(0f)
+        var cropScale = 1f
         var attempts = 0
-        do {
-            croppedArtwork.getPixels(pixels, 0, size, 0, 0, size, size)
-            hasEmptyPixels = false
+        var croppedArtwork: Bitmap? = null
+        while (true) {
+            // Always scale the original artwork, never the already-cropped bitmap.
+            val candidate = createBitmap(size, size)
+            val targetSize = size * cropScale
+            val target = RectF(
+                center - targetSize / 2f,
+                center - targetSize / 2f,
+                center + targetSize / 2f,
+                center + targetSize / 2f
+            )
+            Canvas(candidate).withClip(circle) {
+                drawBitmap(artwork, artworkBounds, target, artworkPaint)
+            }
+
+            candidate.getPixels(pixels, 0, size, 0, 0, size, size)
+            var hasEmptyPixels = false
             for (y in 0 until size) {
                 for (x in 0 until size) {
                     val dx = x + 0.5f - center
                     val dy = y + 0.5f - center
-                    val checkRadius = (radius - 1.5f).coerceAtLeast(0f)
                     if (dx * dx + dy * dy <= checkRadius * checkRadius &&
                         Color.alpha(pixels[y * size + x]) < 128
                     ) {
@@ -300,34 +304,24 @@ class IconRenderer(context: Context) {
                 }
                 if (hasEmptyPixels) break
             }
-            if (hasEmptyPixels && attempts < 80) {
-                val enlarged = createBitmap(size, size)
-                val enlargedCanvas = Canvas(enlarged)
-                val enlargedSize = size * 1.05f
-                val target = RectF(
-                    center - enlargedSize / 2f,
-                    center - enlargedSize / 2f,
-                    center + enlargedSize / 2f,
-                    center + enlargedSize / 2f
-                )
-                enlargedCanvas.drawBitmap(croppedArtwork, null, target, artworkPaint)
-                val recropped = createBitmap(size, size)
-                Canvas(recropped).withClip(circle) {
-                    drawBitmap(enlarged, 0f, 0f, artworkPaint)
-                }
-                croppedArtwork.recycle()
-                enlarged.recycle()
-                croppedArtwork = recropped
-                attempts++
+
+            if (!hasEmptyPixels || attempts >= 80) {
+                croppedArtwork = candidate
+                break
             }
-        } while (hasEmptyPixels && attempts < 80)
+
+            candidate.recycle()
+            cropScale *= 1.05f
+            attempts++
+        }
 
         // The completed circle is reduced to 75% of the selected plate.
+        val completedCrop = requireNotNull(croppedArtwork)
         val finalArtwork = createBitmap(size, size)
         val finalCanvas = Canvas(finalArtwork)
         val finalDiameter = size * 0.75f
         finalCanvas.drawBitmap(
-            croppedArtwork,
+            completedCrop,
             null,
             RectF(
                 center - finalDiameter / 2f,
@@ -337,9 +331,9 @@ class IconRenderer(context: Context) {
             ),
             artworkPaint
         )
-        croppedArtwork.recycle()
+        completedCrop.recycle()
 
-        val output = createBitmap(size, size)
+
         val canvas = Canvas(output)
         canvas.withClip(shapePath) {
             if (back == null) {
