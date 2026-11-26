@@ -415,6 +415,12 @@
     <string name="action_lock_screen">Заблокировать экран</string>
     <string name="action_default_page">Перейти на главную страницу</string>
     <string name="action_open_search">Открыть поиск</string>
+    <string name="action_open_app_search">Вызов поиска</string>
+    <string name="search_apps_hint">Поиск приложений</string>
+    <string name="app_search_play_store">Google Play</string>
+    <string name="app_search_frequent">Частые</string>
+    <string name="app_search_recent">Недавние</string>
+    <string name="app_search_updated">Новые / обновлённые</string>
     <string name="action_recents">Недавние приложения</string>
     <string name="action_quick_settings">Быстрые настройки</string>
     <string name="action_assistant">Ассистент</string>

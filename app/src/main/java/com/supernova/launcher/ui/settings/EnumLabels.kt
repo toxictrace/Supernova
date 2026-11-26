@@ -67,6 +67,7 @@ object EnumLabels {
         GestureAction.LOCK_SCREEN -> R.string.action_lock_screen
         GestureAction.DEFAULT_PAGE -> R.string.action_default_page
         GestureAction.OPEN_SEARCH -> R.string.action_open_search
+        GestureAction.OPEN_APP_SEARCH -> R.string.action_open_app_search
         GestureAction.RECENTS -> R.string.action_recents
         GestureAction.QUICK_SETTINGS -> R.string.action_quick_settings
         GestureAction.ASSISTANT -> R.string.action_assistant

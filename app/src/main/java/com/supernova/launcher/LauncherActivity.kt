@@ -159,6 +159,7 @@ class LauncherActivity :
     private lateinit var drag: LiveDragController
     private lateinit var widgets: WidgetController
     private lateinit var search: SearchController
+    private val appSearch by lazy { com.supernova.launcher.ui.AppSearchController(this, viewModel, ::launchApp) }
     private lateinit var feed: FeedController
     private lateinit var googleDiscover: GoogleDiscoverController
     // Swipe-up drawer pull (a finger-tracking open): armed on a down
@@ -210,6 +211,7 @@ class LauncherActivity :
                     workspaceAdapter.centerPosition(page), Animations.scrollPages(viewModel.state.value.prefs)
                 )
                 override fun openSearch(query: String?) = if (query == null) search.open() else search.open(query)
+                override fun openAppSearch() = appSearch.open()
                 override fun launchApp(app: LaunchableApp) = this@LauncherActivity.launchApp(app)
                 override fun launchShortcut(packageName: String, shortcutId: String, userSerial: Long) =
                     this@LauncherActivity.launchShortcut(packageName, shortcutId, userSerial)

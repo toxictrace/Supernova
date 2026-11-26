@@ -13,6 +13,7 @@ object ActionIcons {
     fun of(action: GestureAction): Int = when (action) {
         GestureAction.OPEN_DRAWER -> R.drawable.ic_action_drawer
         GestureAction.OPEN_SEARCH -> R.drawable.ic_action_search
+        GestureAction.OPEN_APP_SEARCH -> R.drawable.ic_action_search
         GestureAction.EXPAND_NOTIFICATIONS -> R.drawable.ic_action_notifications
         GestureAction.QUICK_SETTINGS -> R.drawable.ic_action_quick_settings
         GestureAction.RECENTS -> R.drawable.ic_action_recents

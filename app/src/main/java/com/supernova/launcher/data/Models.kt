@@ -739,6 +739,7 @@ data class LaunchableApp(
     val label: String,
     val userSerial: Long = 0L,
     val installTime: Long = 0L,
+    val updateTime: Long = 0L,
     // Resolved from the app's override so list surfaces can honor it.
     val hideLabel: Boolean = false,
     // In the private space: drawer and search only, never the home screen.

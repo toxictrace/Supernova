@@ -405,6 +405,12 @@
     <string name="action_lock_screen">Lock screen</string>
     <string name="action_default_page">Go to home page</string>
     <string name="action_open_search">Open search</string>
+    <string name="action_open_app_search">Open app search</string>
+    <string name="search_apps_hint">Search apps</string>
+    <string name="app_search_play_store">Google Play</string>
+    <string name="app_search_frequent">Frequent</string>
+    <string name="app_search_recent">Recent</string>
+    <string name="app_search_updated">New / updated</string>
     <string name="action_recents">Recent apps</string>
     <string name="action_quick_settings">Quick settings</string>
     <string name="action_assistant">Assistant</string>

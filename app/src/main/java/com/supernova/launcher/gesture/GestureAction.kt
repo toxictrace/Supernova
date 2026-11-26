@@ -32,6 +32,7 @@ enum class GestureAction {
     LOCK_SCREEN,
     DEFAULT_PAGE,
     OPEN_SEARCH,
+    OPEN_APP_SEARCH,
     RECENTS,
     QUICK_SETTINGS,
     ASSISTANT,
@@ -82,6 +83,7 @@ object HomeButtonAction {
     val choices = listOf(
         GestureAction.NONE,
         GestureAction.OPEN_SEARCH,
+        GestureAction.OPEN_APP_SEARCH,
         GestureAction.OPEN_DRAWER,
         GestureAction.EXPAND_NOTIFICATIONS,
         GestureAction.DEFAULT_PAGE

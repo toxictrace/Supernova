@@ -38,6 +38,7 @@ class ActionRunner(
         fun expandNotificationShade()
         fun showPage(page: Int)
         fun openSearch(query: String?)
+        fun openAppSearch()
         fun launchApp(app: LaunchableApp)
         fun launchShortcut(packageName: String, shortcutId: String, userSerial: Long)
         fun launchIntentUri(uri: String)
@@ -96,6 +97,10 @@ class ActionRunner(
             }
             GestureAction.OPEN_SEARCH -> {
                 host.openSearch(null)
+                true
+            }
+            GestureAction.OPEN_APP_SEARCH -> {
+                host.openAppSearch()
                 true
             }
             GestureAction.SEARCH_QUERY -> {

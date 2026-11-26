@@ -105,6 +105,7 @@ class AppCatalog(
                     label = info.label?.toString().orEmpty(),
                     userSerial = serial,
                     installTime = info.firstInstallTime,
+                    updateTime = info.applicationInfo.lastUpdateTime,
                     privateSpace = isPrivate,
                     work = isWork
                 )
