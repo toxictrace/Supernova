@@ -67,6 +67,12 @@ class AppSearchController(
                     )
                 )
                 cornerRadius = dp(16).toFloat()
+                val inverseStroke = android.graphics.Color.rgb(
+                    255 - android.graphics.Color.red(backgroundColor),
+                    255 - android.graphics.Color.green(backgroundColor),
+                    255 - android.graphics.Color.blue(backgroundColor)
+                )
+                setStroke(dp(1), inverseStroke)
             }
         }
         val input = EditText(activity).apply {
@@ -104,9 +110,7 @@ class AppSearchController(
             tabMode = TabLayout.MODE_SCROLLABLE
             tabGravity = TabLayout.GRAVITY_START
             setBackgroundColor(backgroundColor)
-            setTabTextColors(
-                androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0xB3), textColor
-            )
+            setTabTextColors(textColor, textColor)
             setTabRippleColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT))
             isInlineLabel = true
             addTab(newTab().setText(R.string.app_search_frequent))
@@ -124,7 +128,7 @@ class AppSearchController(
                 setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_STRETCH)
                 isTabIndicatorFullWidth = true
                 setSelectedTabIndicatorColor(
-                    androidx.core.graphics.ColorUtils.setAlphaComponent(accentColor, 42)
+                    accentColor
                 )
             } else {
                 setSelectedTabIndicator(R.drawable.tab_indicator_drawer)
@@ -142,9 +146,7 @@ class AppSearchController(
                     val child = tabView.getChildAt(childIndex)
                     if (child is android.widget.TextView) {
                         child.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
-                        child.setTextColor(
-                            androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0xB3)
-                        )
+                        child.setTextColor(textColor)
                     }
                 }
             }
