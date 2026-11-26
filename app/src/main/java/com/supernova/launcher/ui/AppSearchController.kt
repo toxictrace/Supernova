@@ -20,7 +20,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.tabs.TabLayout
 import com.supernova.launcher.R
 import com.supernova.launcher.data.LaunchableApp
+import com.supernova.launcher.data.Pref
 import com.supernova.launcher.search.AppMatcher
+import com.supernova.launcher.ui.LabelStyler
 
 // A separate app-only search surface. The global search keeps its own
 // providers, results, recent queries and keyboard behavior.
@@ -36,13 +38,20 @@ class AppSearchController(
     fun open() {
         dialog?.dismiss()
         query = ""
-        selectedTab = TAB_FREQUENT
+        val prefs = viewModel.state.value.prefs
+        selectedTab = prefs.appSearchSelectedTab.coerceIn(TAB_FREQUENT, TAB_UPDATED)
+        val backgroundColor = LabelStyler.parseColor(
+            prefs.appSearchBgColor, activity.getColor(R.color.surface)
+        )
+        val textColor = LabelStyler.parseColor(
+            prefs.appSearchTextColor, activity.getColor(R.color.textPrimary)
+        )
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(16))
             background = GradientDrawable().apply {
-                setColor(activity.getColor(R.color.surface))
+                setColor(backgroundColor)
                 cornerRadius = dp(20).toFloat()
             }
             elevation = dp(8).toFloat()
@@ -56,8 +65,8 @@ class AppSearchController(
             hint = activity.getString(R.string.search_apps_hint)
             setSingleLine(true)
             textSize = 16f
-            setTextColor(activity.getColor(R.color.textPrimary))
-            setHintTextColor(activity.getColor(R.color.textSecondary))
+            setTextColor(textColor)
+            setHintTextColor(textColor)
             background = null
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
@@ -84,7 +93,7 @@ class AppSearchController(
         val tabs = TabLayout(activity).apply {
             tabMode = TabLayout.MODE_FIXED
             tabGravity = TabLayout.GRAVITY_FILL
-            setTabTextColors(activity.getColor(R.color.textSecondary), activity.getColor(R.color.textPrimary))
+            setTabTextColors(textColor, textColor)
             setSelectedTabIndicatorColor(com.supernova.launcher.ui.theme.CustomAccent.of(this))
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
@@ -128,12 +137,14 @@ class AppSearchController(
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 selectedTab = tab.position
+                viewModel.set(Pref.appSearchSelectedTab, selectedTab)
                 refresh()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
 
+        tabs.getTabAt(selectedTab)?.select()
         refresh()
         dialog = Dialog(activity).also {
             it.setContentView(root)
@@ -219,7 +230,7 @@ class AppSearchController(
                 gravity = Gravity.CENTER
                 maxLines = 2
                 textSize = 11f
-                setTextColor(activity.getColor(R.color.textPrimary))
+                setTextColor(textColor)
                 setPadding(0, dp(4), 0, 0)
             }
             cell.addView(icon)

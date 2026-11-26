@@ -508,6 +508,11 @@ data class LauncherPrefs(
     // Desktop/drawer search bar configuration as one JSON document (see
     // ui/SearchBarConfig); "" = defaults (no desktop bar, local drawer filter).
     val searchBarConfig: String = "",
+    // The app-only search keeps its last selected category between openings.
+    val appSearchSelectedTab: Int = 0,
+    // Empty colors follow the current theme's surface and primary text.
+    val appSearchBgColor: String = "",
+    val appSearchTextColor: String = "",
     // Notification title/text lines at the top of the item popup menu.
     val popupNotifications: Boolean = true,
     // App-shortcut rows render inside a rounded inner card (C3). On by

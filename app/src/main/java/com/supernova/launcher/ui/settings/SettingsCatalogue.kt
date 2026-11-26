@@ -2060,6 +2060,22 @@ object SettingsCatalogue {
                     look = SettingItem.RowLook(positive = { permission.granted(context) })
                 )
             }
+        ),
+        SettingsSection(
+            R.string.app_search_style,
+            listOf(
+                SettingItem.Header(R.string.app_search_style_colors),
+                rows.color(
+                    R.string.app_search_background_color,
+                    { it.appSearchBgColor },
+                    default = context.getColor(R.color.surface)
+                ) { viewModel.set(Pref.appSearchBgColor, it) },
+                rows.color(
+                    R.string.app_search_text_color,
+                    { it.appSearchTextColor },
+                    default = context.getColor(R.color.textPrimary)
+                ) { viewModel.set(Pref.appSearchTextColor, it) }
+            )
         )
     )
     }
@@ -2121,7 +2137,13 @@ object SettingsCatalogue {
                 R.string.drawer_search_bar, SurfaceId.DRAWER_SEARCH_BAR,
                 { actions.openStylePicker(SurfaceId.DRAWER_SEARCH_BAR) }
             ),
-            SettingItem.StyleTarget(R.string.settings, SurfaceId.SETTINGS, { actions.openStylePicker(SurfaceId.SETTINGS) })
+            SettingItem.StyleTarget(R.string.settings, SurfaceId.SETTINGS, { actions.openStylePicker(SurfaceId.SETTINGS) }),
+            SettingItem.SectionLink(
+                R.string.app_search_style,
+                R.drawable.ic_settings_search,
+                subtitle = { context.getString(R.string.app_search_style_summary) },
+                onClick = { actions.openSection(R.string.app_search_style) }
+            )
         )
     )
     }

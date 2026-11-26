@@ -422,6 +422,11 @@
     <string name="app_search_frequent">Частые</string>
     <string name="app_search_recent">Недавние</string>
     <string name="app_search_updated">Новые / обновлённые</string>
+    <string name="app_search_style">Настройки поиска Supernova</string>
+    <string name="app_search_style_summary">Цвет фона и шрифта</string>
+    <string name="app_search_style_colors">Цвета</string>
+    <string name="app_search_background_color">Цвет фона</string>
+    <string name="app_search_text_color">Цвет шрифта</string>
     <string name="action_recents">Недавние приложения</string>
     <string name="action_quick_settings">Быстрые настройки</string>
     <string name="action_assistant">Ассистент</string>
