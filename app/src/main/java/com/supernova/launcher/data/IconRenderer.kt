@@ -268,7 +268,7 @@ class IconRenderer(context: Context) {
 
         // Keep the selected shape visible around the circular artwork.
         val radius = largestInscribedCircleRadius(shapePath, size)
-            .roundToInt().coerceAtLeast(1)
+            .coerceAtLeast(1)
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
