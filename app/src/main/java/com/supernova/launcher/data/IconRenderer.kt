@@ -302,7 +302,14 @@ class IconRenderer(context: Context) {
                 )
             }
             back?.mutate()?.let {
-                it.setBounds(0, 0, size, size)
+                val backSize = (size * LEGACY_SHAPE_FILL).roundToInt()
+                val backOffset = (size - backSize) / 2
+                it.setBounds(
+                    backOffset,
+                    backOffset,
+                    backOffset + backSize,
+                    backOffset + backSize
+                )
                 it.draw(this)
             }
             if (isAlreadyRound) {
