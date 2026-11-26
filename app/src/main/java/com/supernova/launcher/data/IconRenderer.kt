@@ -263,109 +263,80 @@ class IconRenderer(context: Context) {
         }
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
-        val isAlreadyRound = hasTransparentCorners(artwork, artworkBounds)
-
-        // The circular artwork occupies 75% of the selected plate.
-        // Square artwork is enlarged by 21% before circular clipping.
-        val radius = (size * 0.375f).roundToInt().coerceAtLeast(1)
-        val diameter = radius * 2
-        val sourceWidth = artworkBounds.width().coerceAtLeast(1)
-        val sourceHeight = artworkBounds.height().coerceAtLeast(1)
+        // Crop the visible artwork to a circle, enlarging and recropping until the circle has no transparent gaps.
         val center = size / 2f
-        val scale = if (isAlreadyRound) {
-            minOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
-        } else {
-            val scaledArtwork = createBitmap(size, size)
-            val scaledCanvas = Canvas(scaledArtwork)
-            val scaledPixels = IntArray(size * size)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            val innerRadius = (radius - (size * 0.015f).coerceAtLeast(2f)).coerceAtLeast(0f)
-            var ringPixels = 0
+        val radius = size / 2f
+        val circle = Path().apply {
+            addCircle(center, center, radius, Path.Direction.CW)
+        }
+        val artworkPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        var croppedArtwork = createBitmap(size, size)
+        Canvas(croppedArtwork).withClip(circle) {
+            drawBitmap(
+                artwork,
+                artworkBounds,
+                RectF(0f, 0f, size.toFloat(), size.toFloat()),
+                artworkPaint
+            )
+        }
+
+        val pixels = IntArray(size * size)
+        var hasEmptyPixels: Boolean
+        var attempts = 0
+        do {
+            croppedArtwork.getPixels(pixels, 0, size, 0, 0, size, size)
+            hasEmptyPixels = false
             for (y in 0 until size) {
                 for (x in 0 until size) {
                     val dx = x + 0.5f - center
                     val dy = y + 0.5f - center
-                    val distanceSquared = dx * dx + dy * dy
-                    if (distanceSquared <= radius * radius &&
-                        distanceSquared >= innerRadius * innerRadius
-                    ) ringPixels++
-                }
-            }
-
-            fun edgeCoverage(candidateScale: Float): Float {
-                scaledArtwork.eraseColor(Color.TRANSPARENT)
-                val width = sourceWidth * candidateScale
-                val height = sourceHeight * candidateScale
-                val target = RectF(
-                    center - width / 2f,
-                    center - height / 2f,
-                    center + width / 2f,
-                    center + height / 2f
-                )
-                scaledCanvas.drawBitmap(artwork, artworkBounds, target, paint)
-                scaledArtwork.getPixels(scaledPixels, 0, size, 0, 0, size, size)
-                var covered = 0
-                for (y in 0 until size) {
-                    for (x in 0 until size) {
-                        val dx = x + 0.5f - center
-                        val dy = y + 0.5f - center
-                        val distanceSquared = dx * dx + dy * dy
-                        if (distanceSquared <= radius * radius &&
-                            distanceSquared >= innerRadius * innerRadius &&
-                            Color.alpha(scaledPixels[y * size + x]) >= 128
-                        ) covered++
+                    if (dx * dx + dy * dy <= radius * radius &&
+                        Color.alpha(pixels[y * size + x]) < 128
+                    ) {
+                        hasEmptyPixels = true
+                        break
                     }
                 }
-                return if (ringPixels == 0) 1f else covered.toFloat() / ringPixels
+                if (hasEmptyPixels) break
             }
-
-            var low = maxOf(
-                diameter.toFloat() / sourceWidth,
-                diameter.toFloat() / sourceHeight
-            )
-            var high = low
-            var coverage = edgeCoverage(high)
-            var attempts = 0
-            while (coverage < 0.995f && attempts < 12) {
-                low = high
-                high *= 1.5f
-                coverage = edgeCoverage(high)
+            if (hasEmptyPixels && attempts < 80) {
+                val enlarged = createBitmap(size, size)
+                val enlargedCanvas = Canvas(enlarged)
+                val enlargedSize = size * 1.05f
+                val target = RectF(
+                    center - enlargedSize / 2f,
+                    center - enlargedSize / 2f,
+                    center + enlargedSize / 2f,
+                    center + enlargedSize / 2f
+                )
+                enlargedCanvas.drawBitmap(croppedArtwork, null, target, artworkPaint)
+                val recropped = createBitmap(size, size)
+                Canvas(recropped).withClip(circle) {
+                    drawBitmap(enlarged, 0f, 0f, artworkPaint)
+                }
+                croppedArtwork.recycle()
+                enlarged.recycle()
+                croppedArtwork = recropped
                 attempts++
             }
-            if (coverage >= 0.995f) {
-                repeat(12) {
-                    val middle = (low + high) / 2f
-                    if (edgeCoverage(middle) >= 0.995f) high = middle else low = middle
-                }
-            }
-            scaledArtwork.recycle()
-            high
-        }
-        val targetWidth = sourceWidth * scale
-        val targetHeight = sourceHeight * scale
-        val artworkTarget = RectF(
-            center - targetWidth / 2f,
-            center - targetHeight / 2f,
-            center + targetWidth / 2f,
-            center + targetHeight / 2f
-        )
-        val circle = Path().apply {
-            addCircle(center, center, radius.toFloat(), Path.Direction.CW)
-        }
+        } while (hasEmptyPixels && attempts < 80)
 
-        // First rasterize the enlarged artwork, then crop that completed image to the circle.
-        val preScaledArtwork = createBitmap(size, size)
-        Canvas(preScaledArtwork).drawBitmap(
-            artwork,
-            artworkBounds,
-            artworkTarget,
-            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        // The completed circle is reduced to 75% of the selected plate.
+        val finalArtwork = createBitmap(size, size)
+        val finalCanvas = Canvas(finalArtwork)
+        val finalDiameter = size * 0.75f
+        finalCanvas.drawBitmap(
+            croppedArtwork,
+            null,
+            RectF(
+                center - finalDiameter / 2f,
+                center - finalDiameter / 2f,
+                center + finalDiameter / 2f,
+                center + finalDiameter / 2f
+            ),
+            artworkPaint
         )
-        val croppedArtwork = createBitmap(size, size)
-        Canvas(croppedArtwork).withClip(circle) {
-            drawBitmap(preScaledArtwork, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
-        }
-        preScaledArtwork.recycle()
+        croppedArtwork.recycle()
 
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
@@ -379,27 +350,13 @@ class IconRenderer(context: Context) {
                 )
             }
             back?.let { drawBackCoveringShape(this, it, shapePath, size) }
-            if (isAlreadyRound) {
-                drawBitmap(
-                    artwork,
-                    artworkBounds,
-                    artworkTarget,
-                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-                )
-            } else {
-                drawBitmap(
-                    croppedArtwork,
-                    0f,
-                    0f,
-                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-                )
-            }
+            drawBitmap(finalArtwork, 0f, 0f, artworkPaint)
             upon?.let {
                 it.setBounds(0, 0, size, size)
                 it.draw(this)
             }
         }
-        croppedArtwork.recycle()
+        finalArtwork.recycle()
         artwork.recycle()
         return output.toDrawable(resources)
     }
