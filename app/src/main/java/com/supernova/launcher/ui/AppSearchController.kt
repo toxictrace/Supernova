@@ -109,20 +109,26 @@ class AppSearchController(
 
         val tabs = TabLayout(activity).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            tabMode = TabLayout.MODE_SCROLLABLE
-            tabGravity = TabLayout.GRAVITY_START
+            // Fixed, equally sized tabs keep their headings in place on selection.
+            tabMode = TabLayout.MODE_FIXED
+            tabGravity = TabLayout.GRAVITY_FILL
             setTabTextColors(textColor, textColor)
             setTabRippleColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT))
             isInlineLabel = true
-            addTab(newTab().setText(R.string.app_search_frequent))
-            addTab(newTab().setText(R.string.app_search_recent))
-            addTab(newTab().setCustomView(TextView(activity).apply {
-                text = activity.getString(R.string.app_search_updated).replace(" / ", " /" + '\n')
+            fun tabTitle(label: String) = TextView(activity).apply {
+                text = label
                 gravity = Gravity.CENTER
                 maxLines = 2
-                textSize = 14f
+                textSize = 13f
                 setTextColor(textColor)
-            }))
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            addTab(newTab().setCustomView(tabTitle(activity.getString(R.string.app_search_frequent))))
+            addTab(newTab().setCustomView(tabTitle(activity.getString(R.string.app_search_recent))))
+            addTab(newTab().setCustomView(tabTitle(activity.getString(R.string.app_search_updated))))
             if (prefs.appSearchTabStyle == DrawerTabStyle.BUBBLE) {
                 val pill = GradientDrawable().apply {
                     cornerRadius = dp(18).toFloat()
@@ -149,11 +155,11 @@ class AppSearchController(
             tabStrip.setBackgroundColor(android.graphics.Color.TRANSPARENT)
             for (index in 0 until tabStrip.childCount) {
                 val tabView = tabStrip.getChildAt(index) as? ViewGroup ?: continue
-                tabView.setPadding(dp(12), 0, dp(12), 0)
+                tabView.setPadding(dp(4), 0, dp(4), 0)
                 for (childIndex in 0 until tabView.childCount) {
                     val child = tabView.getChildAt(childIndex)
                     if (child is android.widget.TextView) {
-                        child.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+                        child.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13f)
                         child.setTextColor(textColor)
                     }
                 }
