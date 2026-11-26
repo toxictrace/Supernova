@@ -1872,10 +1872,8 @@ object SettingsCatalogue {
                 rows.choice(
                     R.string.home_button_action, HomeButtonAction.choices,
                     { HomeButtonAction.effective(it.homeButtonAction, it.homeSearch) }, { action ->
-                        context.getString(
-                            if (action == GestureAction.OPEN_APP_SEARCH) R.string.app_search_launcher_action
-                            else EnumLabels.of(action)
-                        )
+                        if (action == GestureAction.OPEN_APP_SEARCH) R.string.app_search_launcher_action
+                        else EnumLabels.of(action)
                     }
                 ) { action ->
                     viewModel.set(Pref.homeButtonAction, action.name)
