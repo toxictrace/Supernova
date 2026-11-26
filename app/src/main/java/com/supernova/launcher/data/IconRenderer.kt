@@ -271,6 +271,7 @@ class IconRenderer(context: Context) {
         val diameter = radius * 2
         val sourceWidth = artworkBounds.width().coerceAtLeast(1)
         val sourceHeight = artworkBounds.height().coerceAtLeast(1)
+        val center = size / 2f
         val scale = if (isAlreadyRound) {
             minOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
         } else {
@@ -342,7 +343,6 @@ class IconRenderer(context: Context) {
         }
         val targetWidth = sourceWidth * scale
         val targetHeight = sourceHeight * scale
-        val center = size / 2f
         val artworkTarget = RectF(
             center - targetWidth / 2f,
             center - targetHeight / 2f,
