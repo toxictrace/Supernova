@@ -29,7 +29,8 @@ import com.supernova.launcher.ui.LabelStyler
 class AppSearchController(
     private val activity: Activity,
     private val viewModel: LauncherViewModel,
-    private val onLaunchApp: (LaunchableApp) -> Unit
+    private val onLaunchApp: (LaunchableApp) -> Unit,
+    private val onLongPressApp: (View, LaunchableApp, View) -> Unit
 ) {
     private var dialog: Dialog? = null
     private var query = ""
@@ -264,6 +265,11 @@ class AppSearchController(
         input.requestFocus()
     }
 
+    fun dismiss() {
+        dialog?.dismiss()
+        dialog = null
+    }
+
     private fun appsForTab(tab: Int): List<LaunchableApp> {
         val apps = viewModel.searchableApps()
         return when (tab) {
@@ -344,6 +350,12 @@ class AppSearchController(
             holder.cell.setOnClickListener {
                 dialog?.dismiss()
                 onLaunchApp(app)
+            }
+            holder.cell.setOnLongClickListener { view ->
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                val windowAnchor = dialog?.window?.decorView ?: view.rootView
+                onLongPressApp(view, app, windowAnchor)
+                true
             }
         }
 

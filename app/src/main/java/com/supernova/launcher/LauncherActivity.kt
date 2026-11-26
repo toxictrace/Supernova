@@ -159,7 +159,17 @@ class LauncherActivity :
     private lateinit var drag: LiveDragController
     private lateinit var widgets: WidgetController
     private lateinit var search: SearchController
-    private val appSearch by lazy { com.supernova.launcher.ui.AppSearchController(this, viewModel, ::launchApp) }
+    private val appSearch by lazy {
+        com.supernova.launcher.ui.AppSearchController(this, viewModel, ::launchApp) { anchor, app, windowAnchor ->
+            showDrawerItemMenu(
+                anchor = anchor,
+                app = app,
+                windowAnchor = windowAnchor,
+                touchX = null,
+                onSourceDismiss = { appSearch.dismiss() }
+            )
+        }
+    }
     private lateinit var feed: FeedController
     private lateinit var googleDiscover: GoogleDiscoverController
     // Swipe-up drawer pull (a finger-tracking open): armed on a down
@@ -3450,7 +3460,10 @@ class LauncherActivity :
     private fun showDrawerItemMenu(
         anchor: View,
         app: LaunchableApp,
-        source: android.widget.PopupWindow? = null
+        source: android.widget.PopupWindow? = null,
+        windowAnchor: View? = null,
+        touchX: Float? = menuTouchX,
+        onSourceDismiss: () -> Unit = {}
     ): SupernovaPopupMenu {
         val menu = newItemPopup(forItem = true)
         addNotificationRows(menu, app.packageName, app.userSerial)
@@ -3468,6 +3481,7 @@ class LauncherActivity :
                 placeTapped(viewModel.state.value.currentPage) { spot ->
                     viewModel.addAppToWorkspace(app, spot.page, spot.cellX, spot.cellY)
                     source?.dismiss()
+                    onSourceDismiss()
                     closeItemSources()
                 }
             }
@@ -3482,6 +3496,7 @@ class LauncherActivity :
         }
         menu.addRow(getString(R.string.edit), R.drawable.ic_menu_edit) {
             source?.dismiss()
+            onSourceDismiss()
             AppEditSheet.show(this, lifecycleScope, viewModel, app, ::pickPhoto, fromDrawer = true)
         }
         // A hidden app only gets here through search or Show hidden apps,
@@ -3495,6 +3510,7 @@ class LauncherActivity :
             menu.addRow(getString(R.string.hide_app), R.drawable.ic_menu_hide) {
                 viewModel.setAppHidden(app, true)
                 source?.dismiss()
+                onSourceDismiss()
                 // Where it went, and the way back.
                 // Raised over the drawer and the search window it was hidden
                 // from: at its own elevation it drew under them, and a tap
@@ -3521,6 +3537,7 @@ class LauncherActivity :
                 if (homeClosed) {
                     launchShortcut(app.packageName, shortcut.id, app.userSerial, anchor)
                     if (viewModel.state.value.prefs.folderCloseOnLaunch) source?.dismiss()
+                    onSourceDismiss()
                     if (::search.isInitialized && search.isOpen) search.hide()
                     return@addShortcut
                 }
@@ -3536,11 +3553,12 @@ class LauncherActivity :
                     )
                     pinShortcut(app.packageName, shortcut.id, app.userSerial)
                     source?.dismiss()
+                    onSourceDismiss()
                     closeItemSources()
                 }
             }
         }
-        menu.show(anchor, menuTouchX)
+        menu.show(anchor, touchX, windowAnchor)
         return menu
     }
 

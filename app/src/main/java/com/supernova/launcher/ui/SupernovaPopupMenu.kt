@@ -443,7 +443,11 @@ class SupernovaPopupMenu(
         return popup.contentView
     }
 
-    fun show(anchor: View, touchX: Float? = null): SupernovaPopupMenu {
+    fun show(
+        anchor: View,
+        touchX: Float? = null,
+        windowAnchor: View? = null
+    ): SupernovaPopupMenu {
         // Before measuring: a menu long-pressed out of the drawer or the
         // search overlay opens with the keyboard up otherwise.
         anchor.hideKeyboardForWindow()
@@ -454,7 +458,8 @@ class SupernovaPopupMenu(
         // screen bottom pushes rows under the nav bar - and its offsets mirror
         // themselves under a right-to-left layout, where one measured from a
         // touch must not.
-        val window = anchor.rootView
+        // Dedicated search dialogs supply their own popup parent window.
+        val window = windowAnchor ?: anchor.rootView
         val pad = context.dp(SHADOW_PAD_DP)
         val root = popup.contentView
         root.measure(
@@ -494,7 +499,9 @@ class SupernovaPopupMenu(
         // panel whose parent is another panel (BadTokenException on a member
         // long-press). The card fills the window, so its coordinates are the
         // window's too.
-        val appWindow = (context as? android.app.Activity)?.window?.decorView ?: anchor
+        val appWindow = windowAnchor
+            ?: (context as? android.app.Activity)?.window?.decorView
+            ?: anchor
         popup.showAtLocation(
             appWindow, Gravity.NO_GRAVITY, cardLeft - pad,
             cardTop.coerceAtLeast(edge) - pad
