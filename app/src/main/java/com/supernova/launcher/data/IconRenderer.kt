@@ -272,7 +272,9 @@ class IconRenderer(context: Context) {
         val artworkPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         val pixels = IntArray(size * size)
         val checkRadius = (radius - 1.5f).coerceAtLeast(0f)
-        var cropScale = 1f
+        // Push the source image beyond the circle's four tangent points.
+        // This crops the square image corners instead of treating opaque edge artwork as a filled circle.
+        var cropScale = 1.41421356f
         var attempts = 0
         var croppedArtwork: Bitmap? = null
         while (true) {
