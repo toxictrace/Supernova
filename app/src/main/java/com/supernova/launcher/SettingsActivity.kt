@@ -2514,6 +2514,7 @@ class SettingsActivity : AppCompatActivity() {
             R.string.settings_section_dock to (R.drawable.ic_settings_dock to R.string.section_dock_subtitle),
             R.string.settings_section_drawer to (R.drawable.ic_settings_drawer to R.string.section_drawer_subtitle),
             R.string.settings_section_search to (R.drawable.ic_settings_search to R.string.section_search_subtitle),
+            R.string.settings_section_app_search to (R.drawable.ic_settings_app_search to R.string.section_search_subtitle),
             R.string.settings_section_feed to (R.drawable.ic_settings_feed to R.string.section_feed_subtitle),
             R.string.settings_section_folders to (R.drawable.ic_settings_folders to R.string.section_folders_subtitle),
             R.string.settings_section_icons to (R.drawable.ic_settings_icons to R.string.section_icons_subtitle),

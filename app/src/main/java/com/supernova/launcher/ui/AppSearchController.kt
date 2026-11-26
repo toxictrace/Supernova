@@ -59,6 +59,15 @@ class AppSearchController(
         val searchRow = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), 0, dp(4), 0)
+            background = GradientDrawable().apply {
+                setColor(
+                    androidx.core.graphics.ColorUtils.blendARGB(
+                        backgroundColor, android.graphics.Color.BLACK, 0.10f
+                    )
+                )
+                cornerRadius = dp(16).toFloat()
+            }
         }
         val input = EditText(activity).apply {
             hint = activity.getString(R.string.search_apps_hint)
@@ -68,13 +77,13 @@ class AppSearchController(
             setHintTextColor(textColor)
             background = null
             imeOptions = EditorInfo.IME_ACTION_SEARCH
-            layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
         }
         val play = ImageView(activity).apply {
             contentDescription = activity.getString(R.string.app_search_play_store)
             scaleType = ImageView.ScaleType.FIT_CENTER
             setPadding(dp(8), dp(8), dp(8), dp(8))
-            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(48))
             val icon = runCatching {
                 activity.packageManager.getApplicationIcon("com.android.vending")
             }.getOrElse {
@@ -87,12 +96,23 @@ class AppSearchController(
         }
         searchRow.addView(input)
         searchRow.addView(play)
-        root.addView(searchRow)
+        root.addView(searchRow, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+        ).apply { bottomMargin = dp(4) })
 
         val tabs = TabLayout(activity).apply {
-            tabMode = TabLayout.MODE_FIXED
-            tabGravity = TabLayout.GRAVITY_FILL
-            setTabTextColors(textColor, textColor)
+            tabMode = TabLayout.MODE_SCROLLABLE
+            tabGravity = TabLayout.GRAVITY_START
+            setBackgroundColor(backgroundColor)
+            setTabTextAppearance(R.style.TextAppearance_Supernova_DrawerTab)
+            setTabTextColors(
+                androidx.core.graphics.ColorUtils.setAlphaComponent(textColor, 0xB3), textColor
+            )
+            setTabMinWidth(dp(48))
+            setTabPaddingStart(dp(12))
+            setTabPaddingEnd(dp(12))
+            setTabRippleColor(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT))
+            isInlineLabel = true
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
             addTab(newTab().setText(R.string.app_search_updated))
