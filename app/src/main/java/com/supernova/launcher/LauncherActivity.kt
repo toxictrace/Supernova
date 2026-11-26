@@ -159,7 +159,7 @@ class LauncherActivity :
     private lateinit var drag: LiveDragController
     private lateinit var widgets: WidgetController
     private lateinit var search: SearchController
-    private val appSearch by lazy {
+    private val appSearch: com.supernova.launcher.ui.AppSearchController by lazy {
         com.supernova.launcher.ui.AppSearchController(this, viewModel, ::launchApp) { anchor, app, windowAnchor ->
             showDrawerItemMenu(
                 anchor = anchor,
