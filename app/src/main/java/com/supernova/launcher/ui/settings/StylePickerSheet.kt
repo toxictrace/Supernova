@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import com.supernova.launcher.R
 import com.supernova.launcher.data.Pref
@@ -428,9 +429,9 @@ object StylePickerSheet {
             val scroller = HorizontalScrollView(context).apply {
                 isHorizontalScrollBarEnabled = false
                 addView(row)
-                post {
+                doOnLayout {
                     selectedInRow?.let { selected ->
-                        val target = (selected.left - (width - selected.width) / 2).coerceAtLeast(0)
+                        val target = (selected.left - (this.width - selected.width) / 2).coerceAtLeast(0)
                         scrollTo(target, 0)
                     }
                 }
