@@ -2074,7 +2074,16 @@ object SettingsCatalogue {
                     R.string.app_search_text_color,
                     { it.appSearchTextColor },
                     default = context.getColor(R.color.textPrimary)
-                ) { viewModel.set(Pref.appSearchTextColor, it) }
+                ) { viewModel.set(Pref.appSearchTextColor, it) },
+                rows.color(
+                    R.string.app_search_accent_color,
+                    { it.appSearchAccentColor },
+                    default = com.google.android.material.color.MaterialColors.getColor(
+                        context,
+                        androidx.appcompat.R.attr.colorAccent,
+                        context.getColor(R.color.accentCustom)
+                    )
+                ) { viewModel.set(Pref.appSearchAccentColor, it) }
             )
         )
     )

@@ -413,10 +413,11 @@
     <string name="app_search_recent">Recent</string>
     <string name="app_search_updated">New / updated</string>
     <string name="app_search_style">Supernova search settings</string>
-    <string name="app_search_style_summary">Background and font colors</string>
+    <string name="app_search_style_summary">Background, font and accent colors</string>
     <string name="app_search_style_colors">Colors</string>
     <string name="app_search_background_color">Background color</string>
     <string name="app_search_text_color">Font color</string>
+    <string name="app_search_accent_color">Accent</string>
     <string name="action_recents">Recent apps</string>
     <string name="action_quick_settings">Quick settings</string>
     <string name="action_assistant">Assistant</string>

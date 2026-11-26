@@ -326,6 +326,7 @@ object Pref {
     val appSearchSelectedTab = int("app_search_selected_tab", 0..2)
     val appSearchBgColor = text("app_search_bg_color")
     val appSearchTextColor = text("app_search_text_color")
+    val appSearchAccentColor = text("app_search_accent_color")
     val popupNotifications = bool("popup_notifications")
     val popupCardBg = bool("popup_card_bg")
     val popupGroupShortcuts = bool("popup_group_shortcuts")

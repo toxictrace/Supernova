@@ -513,6 +513,8 @@ data class LauncherPrefs(
     // Empty colors follow the current theme's surface and primary text.
     val appSearchBgColor: String = "",
     val appSearchTextColor: String = "",
+    // Empty accent follows the launcher current theme accent.
+    val appSearchAccentColor: String = "",
     // Notification title/text lines at the top of the item popup menu.
     val popupNotifications: Boolean = true,
     // App-shortcut rows render inside a rounded inner card (C3). On by

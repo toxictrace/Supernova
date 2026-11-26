@@ -46,6 +46,12 @@ class AppSearchController(
         val textColor = LabelStyler.parseColor(
             prefs.appSearchTextColor, activity.getColor(R.color.textPrimary)
         )
+        val accentColor = LabelStyler.parseColor(
+            prefs.appSearchAccentColor,
+            com.supernova.launcher.ui.theme.CustomAccent.of(
+                android.widget.LinearLayout(activity)
+            )
+        )
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -94,7 +100,7 @@ class AppSearchController(
             tabMode = TabLayout.MODE_FIXED
             tabGravity = TabLayout.GRAVITY_FILL
             setTabTextColors(textColor, textColor)
-            setSelectedTabIndicatorColor(com.supernova.launcher.ui.theme.CustomAccent.of(this))
+            setSelectedTabIndicatorColor(accentColor)
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
             addTab(newTab().setText(R.string.app_search_updated))
