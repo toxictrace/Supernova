@@ -407,6 +407,7 @@
     <string name="action_open_search">Open search</string>
     <string name="action_open_app_search">Open app search</string>
     <string name="search_apps_hint">Search apps</string>
+    <string name="app_search_launcher_action">Supernova search</string>
     <string name="app_search_play_store">Google Play</string>
     <string name="app_search_frequent">Frequent</string>
     <string name="app_search_recent">Recent</string>

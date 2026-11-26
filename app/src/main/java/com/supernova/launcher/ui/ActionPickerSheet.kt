@@ -97,7 +97,7 @@ class ActionPickerSheet private constructor(
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setTabTextColors(context.getColor(R.color.textSecondary), context.getColor(R.color.textPrimary))
             setSelectedTabIndicatorColor(com.supernova.launcher.ui.theme.CustomAccent.of(this))
-            addTab(newTab().setText(R.string.action_open_app_search))
+            addTab(newTab().setText(R.string.app_name))
             addTab(newTab().setText(R.string.picker_tab_apps))
             addTab(newTab().setText(R.string.picker_tab_shortcuts))
         }
@@ -186,7 +186,10 @@ class ActionPickerSheet private constructor(
             actions, viewModel.appCatalog().hasPrivateSpace()
         )
         return listOf(none) + offered.map { action ->
-            val label = context.getString(EnumLabels.of(action))
+            val label = context.getString(
+                if (action == GestureAction.OPEN_APP_SEARCH) R.string.app_search_launcher_action
+                else EnumLabels.of(action)
+            )
             // The same shaped tile the action gets as a home icon.
             val tile = AppCompatResources.getDrawable(context, ActionIcons.of(action))
                 ?.let { viewModel.appCatalog().renderActionTile(it) }

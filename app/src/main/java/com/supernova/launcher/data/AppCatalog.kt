@@ -105,7 +105,8 @@ class AppCatalog(
                     label = info.label?.toString().orEmpty(),
                     userSerial = serial,
                     installTime = info.firstInstallTime,
-                    updateTime = info.applicationInfo.lastUpdateTime,
+                    updateTime = runCatching { pm.getPackageInfo(component.packageName, 0).lastUpdateTime }
+                        .getOrDefault(info.firstInstallTime),
                     privateSpace = isPrivate,
                     work = isWork
                 )

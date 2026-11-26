@@ -417,6 +417,7 @@
     <string name="action_open_search">Открыть поиск</string>
     <string name="action_open_app_search">Вызов поиска</string>
     <string name="search_apps_hint">Поиск приложений</string>
+    <string name="app_search_launcher_action">Поиск Supernova</string>
     <string name="app_search_play_store">Google Play</string>
     <string name="app_search_frequent">Частые</string>
     <string name="app_search_recent">Недавние</string>

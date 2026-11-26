@@ -48,7 +48,7 @@ class AppSearchController(
         }
         val input = EditText(activity).apply {
             hint = activity.getString(R.string.search_apps_hint)
-            singleLine = true
+            setSingleLine(true)
             textSize = 16f
             setTextColor(activity.getColor(R.color.textPrimary))
             setHintTextColor(activity.getColor(R.color.textSecondary))
