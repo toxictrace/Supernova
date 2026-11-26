@@ -117,7 +117,7 @@ class AppSearchController(
             addTab(newTab().setText(R.string.app_search_frequent))
             addTab(newTab().setText(R.string.app_search_recent))
             addTab(newTab().setCustomView(TextView(activity).apply {
-                text = activity.getString(R.string.app_search_updated).replace(" / ", " /\\n")
+                text = activity.getString(R.string.app_search_updated).replace(" / ", " /" + '\n')
                 gravity = Gravity.CENTER
                 maxLines = 2
                 textSize = 14f
