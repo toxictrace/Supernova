@@ -274,7 +274,71 @@ class IconRenderer(context: Context) {
         val scale = if (isAlreadyRound) {
             minOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight)
         } else {
-            maxOf(diameter.toFloat() / sourceWidth, diameter.toFloat() / sourceHeight) * 1.21f
+            val scaledArtwork = createBitmap(size, size)
+            val scaledCanvas = Canvas(scaledArtwork)
+            val scaledPixels = IntArray(size * size)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            val innerRadius = (radius - (size * 0.015f).coerceAtLeast(2f)).coerceAtLeast(0f)
+            var ringPixels = 0
+            for (y in 0 until size) {
+                for (x in 0 until size) {
+                    val dx = x + 0.5f - center
+                    val dy = y + 0.5f - center
+                    val distanceSquared = dx * dx + dy * dy
+                    if (distanceSquared <= radius * radius &&
+                        distanceSquared >= innerRadius * innerRadius
+                    ) ringPixels++
+                }
+            }
+
+            fun edgeCoverage(candidateScale: Float): Float {
+                scaledArtwork.eraseColor(Color.TRANSPARENT)
+                val width = sourceWidth * candidateScale
+                val height = sourceHeight * candidateScale
+                val target = RectF(
+                    center - width / 2f,
+                    center - height / 2f,
+                    center + width / 2f,
+                    center + height / 2f
+                )
+                scaledCanvas.drawBitmap(artwork, artworkBounds, target, paint)
+                scaledArtwork.getPixels(scaledPixels, 0, size, 0, 0, size, size)
+                var covered = 0
+                for (y in 0 until size) {
+                    for (x in 0 until size) {
+                        val dx = x + 0.5f - center
+                        val dy = y + 0.5f - center
+                        val distanceSquared = dx * dx + dy * dy
+                        if (distanceSquared <= radius * radius &&
+                            distanceSquared >= innerRadius * innerRadius &&
+                            Color.alpha(scaledPixels[y * size + x]) >= 128
+                        ) covered++
+                    }
+                }
+                return if (ringPixels == 0) 1f else covered.toFloat() / ringPixels
+            }
+
+            var low = maxOf(
+                diameter.toFloat() / sourceWidth,
+                diameter.toFloat() / sourceHeight
+            )
+            var high = low
+            var coverage = edgeCoverage(high)
+            var attempts = 0
+            while (coverage < 0.995f && attempts < 12) {
+                low = high
+                high *= 1.5f
+                coverage = edgeCoverage(high)
+                attempts++
+            }
+            if (coverage >= 0.995f) {
+                repeat(12) {
+                    val middle = (low + high) / 2f
+                    if (edgeCoverage(middle) >= 0.995f) high = middle else low = middle
+                }
+            }
+            scaledArtwork.recycle()
+            high
         }
         val targetWidth = sourceWidth * scale
         val targetHeight = sourceHeight * scale
