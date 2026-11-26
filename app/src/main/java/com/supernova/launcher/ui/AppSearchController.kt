@@ -109,7 +109,6 @@ class AppSearchController(
 
         val tabs = TabLayout(activity).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            setTabBackgroundResource(android.R.color.transparent)
             tabMode = TabLayout.MODE_SCROLLABLE
             tabGravity = TabLayout.GRAVITY_START
             setTabTextColors(textColor, textColor)
