@@ -103,7 +103,7 @@ class IconRenderer(context: Context) {
         // Only raw legacy icons need it: adaptive icons and pack plates are
         // already uniform, and shaped rendering deliberately overfills.
         val isRawLegacy = shapePath == null &&
-            decoration?.back == null && source !is AdaptiveIconDrawable
+            decoration?.backs.isNullOrEmpty() && source !is AdaptiveIconDrawable
         val shouldNormalize = reshapeLegacy != ReshapeLegacy.OFF && isRawLegacy
         // The pane's outline, when there is one: the shadow keeps clear of it.
         val glassMask = drawSource(canvas, source, decoration, shapePath, glass)
@@ -657,12 +657,13 @@ class IconRenderer(context: Context) {
         }
 
         try {
-            decoration?.back?.let { back ->
-                back.setBounds(0, 0, iconSizePx, iconSizePx)
-                back.draw(canvas)
+            val back = decoration?.backs?.firstOrNull()?.drawable
+            back?.let {
+                it.setBounds(0, 0, iconSizePx, iconSizePx)
+                it.draw(canvas)
             }
 
-            val hasBack = decoration?.back != null
+            val hasBack = back != null
             val hasPackDecoration = decoration != null
             val packScale = decoration?.scale?.takeIf { it > 0f } ?: 1f
 
