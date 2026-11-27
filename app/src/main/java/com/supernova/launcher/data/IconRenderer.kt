@@ -230,7 +230,7 @@ class IconRenderer(context: Context) {
         source: Drawable,
         shape: IconShape,
         customShape: CustomShapeSpec?,
-        back: Drawable? = null,
+        backs: List<IconPackBack> = emptyList(),
         upon: Drawable? = null
     ): Drawable {
         val size = iconSizePx
@@ -256,11 +256,11 @@ class IconRenderer(context: Context) {
             source.setBounds(0, 0, size, size)
             source.draw(artworkCanvas)
         }
-        val fallbackPlateColor = if (back == null) {
-            DominantColor.of(artwork) ?: PLATE_COLOR
-        } else {
-            null
-        }
+        val artworkColor = DominantColor.of(artwork)
+        val back = backs.getOrNull(
+            DominantColor.closestIndex(artworkColor, backs.map { it.color })
+        )?.drawable
+        val fallbackPlateColor = if (back == null) artworkColor ?: PLATE_COLOR else null
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
         // Crop the visible artwork to a circle, enlarging and recropping until the circle has no transparent gaps.

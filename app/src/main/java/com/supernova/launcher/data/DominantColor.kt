@@ -34,6 +34,48 @@ object DominantColor {
         return saturated.average() ?: all.average()
     }
 
+    // CIE76 distance in CIELAB makes "nearest" follow perceived colour differences,
+    // rather than the uneven distances of raw RGB values.
+    fun closestIndex(target: Int?, candidates: List<Int?>): Int {
+        if (target == null || candidates.isEmpty()) return 0
+        val targetLab = lab(target)
+        var bestIndex = 0
+        var bestDistance = Double.POSITIVE_INFINITY
+        candidates.forEachIndexed { index, candidate ->
+            candidate ?: return@forEachIndexed
+            val candidateLab = lab(candidate)
+            val deltaL = targetLab[0] - candidateLab[0]
+            val deltaA = targetLab[1] - candidateLab[1]
+            val deltaB = targetLab[2] - candidateLab[2]
+            val distance = deltaL * deltaL + deltaA * deltaA + deltaB * deltaB
+            if (distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+    private fun lab(color: Int): DoubleArray {
+        fun linear(channel: Int): Double {
+            val value = channel / 255.0
+            return if (value <= 0.04045) value / 12.92 else Math.pow((value + 0.055) / 1.055, 2.4)
+        }
+        fun axis(value: Double): Double {
+            val delta = 6.0 / 29.0
+            return if (value > delta * delta * delta) Math.pow(value, 1.0 / 3.0)
+            else value / (3.0 * delta * delta) + 4.0 / 29.0
+        }
+
+        val red = linear(color ushr 16 and 0xFF)
+        val green = linear(color ushr 8 and 0xFF)
+        val blue = linear(color and 0xFF)
+        val x = axis((0.4124564 * red + 0.3575761 * green + 0.1804375 * blue) / 0.95047)
+        val y = axis(0.2126729 * red + 0.7151522 * green + 0.0721750 * blue)
+        val z = axis((0.0193339 * red + 0.1191920 * green + 0.9503041 * blue) / 1.08883)
+        return doubleArrayOf(116.0 * y - 16.0, 500.0 * (x - y), 200.0 * (y - z))
+    }
+
     private class Sum {
         var r = 0L
         var g = 0L

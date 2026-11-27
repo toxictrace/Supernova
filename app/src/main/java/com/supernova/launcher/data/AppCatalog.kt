@@ -343,8 +343,8 @@ class AppCatalog(
     // profile badge. Called under renderLock.
     private fun drawEdited(app: LaunchableApp, user: UserHandle, override: AppOverride?): Drawable? {
         val variant = override?.iconVariant
-        // Keys the pack's iconback choice, so an app keeps the same plate
-        // between launches instead of shuffling on every cache rebuild.
+        // Keeps the pack's mask and overlay choices stable for this app.
+        // The iconback is selected by colour during rendering.
         val packComponent = "${app.packageName}/${app.className}"
         val effectiveShape = shapeFor(override)
         // A gallery image outranks a pack icon (they are mutually exclusive
@@ -414,7 +414,7 @@ class AppCatalog(
                     source,
                     effectiveShape,
                     customShapeSpec,
-                    decoration?.back,
+                    decoration?.backs.orEmpty(),
                     decoration?.upon
                 )
             } else {
@@ -955,7 +955,7 @@ class AppCatalog(
     companion object {
         // Bumped when a render changes how an icon looks for the same
         // settings, so the disk cache starts over.
-        const val DISK_FORMAT = 19
+        const val DISK_FORMAT = 20
 
         // Marks a Large icon's copy in a cache key.
         const val LARGE_KEY = "^large"

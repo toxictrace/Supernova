@@ -7,7 +7,11 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import kotlin.math.roundToInt
 import android.util.DisplayMetrics
 import android.util.TypedValue
 import com.supernova.launcher.runLogged
@@ -16,6 +20,11 @@ import org.xmlpull.v1.XmlPullParser
 data class IconPack(
     val packageName: String,
     val label: String
+)
+
+data class IconPackBack(
+    val drawable: Drawable,
+    val color: Int?
 )
 
 // Parses the de-facto Apex/ADW icon pack format: appfilter.xml maps a
@@ -39,6 +48,7 @@ class IconPackRepository(private val context: Context) {
     private var packResources: Resources? = null
     private var maskDrawables: List<Drawable> = emptyList()
     private var backDrawables: List<Drawable> = emptyList()
+    private var backCandidates: List<IconPackBack> = emptyList()
     private var uponDrawables: List<Drawable> = emptyList()
     private var iconScale: Float = 1f
 
@@ -106,8 +116,25 @@ class IconPackRepository(private val context: Context) {
     // The pack's plates, drawn from its resources as they now are.
     private fun loadDecoration() {
         backDrawables = backNames.mapNotNull { drawableByName(it) }
+        backCandidates = backDrawables.map { IconPackBack(it, drawableColor(it)) }
         maskDrawables = maskNames.mapNotNull { drawableByName(it) }
         uponDrawables = uponNames.mapNotNull { drawableByName(it) }
+    }
+
+    // Read each plate's representative colour once. Bounds are restored because
+    // the same drawable is later used to render the selected plate.
+    private fun drawableColor(drawable: Drawable): Int? {
+        val size = (48f * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val previousBounds = Rect(drawable.bounds)
+        return try {
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(Canvas(bitmap))
+            DominantColor.of(bitmap)
+        } finally {
+            drawable.bounds = previousBounds
+            bitmap.recycle()
+        }
     }
 
     // What the loaded pack's icons were drawn under, for the disk cache's
@@ -237,6 +264,7 @@ class IconPackRepository(private val context: Context) {
         packResources = null
         maskDrawables = emptyList()
         backDrawables = emptyList()
+        backCandidates = emptyList()
         uponDrawables = emptyList()
         backNames = emptyList()
         maskNames = emptyList()
@@ -357,22 +385,19 @@ class IconPackRepository(private val context: Context) {
         return drawableByName(calendarDrawableName(prefix, dayOfMonth))
     }
 
-    // The plate a pack puts behind an unthemed icon. Packs ship several
-    // iconbacks so a screen of unthemed apps doesn't come out identical; which
-    // one an app gets is picked from its own component name, so it is stable
-    // across launches and cache rebuilds but still varied across the drawer.
-    // component is null where there is nothing to key on, which takes the
-    // first back, the way this always behaved.
+    // All iconbacks and their cached representative colours go to the renderer.
+    // It chooses the plate nearest to the missing app icon's own colour.
+    // Masks and overlays remain stable for each app component.
     fun decoration(component: String? = null): IconPackDecoration? {
         if (loadedPackage.isNullOrBlank()) return null
-        if (backDrawables.isEmpty() && maskDrawables.isEmpty() && uponDrawables.isEmpty()) return null
+        if (backCandidates.isEmpty() && maskDrawables.isEmpty() && uponDrawables.isEmpty()) return null
         fun selected(drawables: List<Drawable>): Drawable? = when {
             drawables.isEmpty() -> null
             component == null -> drawables.first()
-            else -> drawables[backIndex(component, drawables.size)]
+            else -> drawables[stableIndex(component, drawables.size)]
         }
         return IconPackDecoration(
-            back = selected(backDrawables),
+            backs = backCandidates,
             mask = selected(maskDrawables),
             upon = selected(uponDrawables),
             scale = iconScale
@@ -553,11 +578,8 @@ class IconPackRepository(private val context: Context) {
             return (exact + others).map { it.second }.distinct()
         }
 
-        // Which of a pack's iconbacks an app gets. Keyed off the component so
-        // the choice is the same on every launch - a plate that changed when
-        // the icon cache was rebuilt would read as a glitch - while still
-        // spreading a pack's backs across a screen of apps.
-        fun backIndex(component: String, count: Int): Int {
+        // Stable selection for decorative masks and overlays.
+        fun stableIndex(component: String, count: Int): Int {
             if (count <= 1) return 0
             return ((component.hashCode().toLong() and 0xFFFFFFFFL) % count).toInt()
         }
@@ -573,7 +595,7 @@ class IconPackRepository(private val context: Context) {
 }
 
 data class IconPackDecoration(
-    val back: Drawable?,
+    val backs: List<IconPackBack>,
     val mask: Drawable?,
     val upon: Drawable?,
     val scale: Float

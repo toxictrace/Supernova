@@ -50,26 +50,31 @@ class IconPackMatchTest {
     }
 
     @Test
-    fun backIndexIsStableAndInRange() {
-        val component = "com.android.chrome/com.google.android.apps.chrome.Main"
-        val first = IconPackRepository.backIndex(component, 4)
-        assertEquals(first, IconPackRepository.backIndex(component, 4))
-        assertTrue(first in 0..3)
+    fun closestBackUsesTheNearestPerceptualColour() {
+        val target = 0xFFEF4540.toInt()
+        val candidates = listOf(
+            0xFFEA403B.toInt(),
+            0xFF20C850.toInt(),
+            0xFF2440D8.toInt()
+        )
+        assertEquals(0, DominantColor.closestIndex(target, candidates))
     }
 
     @Test
-    fun backIndexNeverGoesNegativeOnANegativeHash() {
-        // String.hashCode is signed; a raw modulo would index out of bounds.
-        repeat(500) { i ->
-            val index = IconPackRepository.backIndex("pkg$i/cls$i", 3)
-            assertTrue("index $index out of range for pkg$i", index in 0..2)
-        }
+    fun closestBackSkipsCandidatesWithoutAReadableColour() {
+        val target = 0xFF20C850.toInt()
+        val candidates = listOf<Int?>(null, 0xFF20C850.toInt(), 0xFFEA403B.toInt())
+        assertEquals(1, DominantColor.closestIndex(target, candidates))
     }
 
     @Test
-    fun oneBackIsAlwaysIndexZero() {
-        assertEquals(0, IconPackRepository.backIndex("anything/at.All", 1))
-        assertEquals(0, IconPackRepository.backIndex("anything/at.All", 0))
+    fun missingTargetColourKeepsTheFirstAvailableBack() {
+        assertEquals(0, DominantColor.closestIndex(null, listOf(0xFFEA403B.toInt(), 0xFF20C850.toInt())))
+    }
+
+    @Test
+    fun emptyBackListHasNoSelectedIndex() {
+        assertEquals(0, DominantColor.closestIndex(0xFFFFFFFF.toInt(), emptyList()))
     }
 
     @Test
