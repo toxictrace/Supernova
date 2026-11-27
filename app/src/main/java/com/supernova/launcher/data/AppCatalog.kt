@@ -388,7 +388,7 @@ class AppCatalog(
             val mono = monochromeThemedIcon(app.packageName, app.className, user, force = true)
             source = mono ?: appOwnIcon(app.packageName, app.className, user) ?: return null
             decoration = if (mono == null) iconPacks.decoration(packComponent) else null
-            missingPackIcon = mono == null && iconPacks.loadedPack() != null
+            missingPackIcon = mono == null && !iconPacks.loadedPack().isNullOrBlank()
         } else {
             // A themed icon from the active pack already looks final; only
             // unthemed apps get the pack's back/mask/upon treatment.
@@ -401,7 +401,7 @@ class AppCatalog(
             val mono = own?.let { themedIcon(it, force = false) }
             source = themed ?: mono ?: own ?: return null
             decoration = if (themed == null && mono == null) iconPacks.decoration(packComponent) else null
-            missingPackIcon = themed == null && mono == null && iconPacks.loadedPack() != null
+            missingPackIcon = themed == null && mono == null && !iconPacks.loadedPack().isNullOrBlank()
             finishedArt = themed != null
             ownIcon = themed == null && mono == null && decoration == null
         }
