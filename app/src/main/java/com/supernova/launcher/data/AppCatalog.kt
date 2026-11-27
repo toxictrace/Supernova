@@ -415,6 +415,7 @@ class AppCatalog(
                     effectiveShape,
                     customShapeSpec,
                     decoration?.backs.orEmpty(),
+                    decoration?.mask,
                     decoration?.upon
                 )
             } else {
@@ -955,7 +956,7 @@ class AppCatalog(
     companion object {
         // Bumped when a render changes how an icon looks for the same
         // settings, so the disk cache starts over.
-        const val DISK_FORMAT = 21
+        const val DISK_FORMAT = 22
 
         // Marks a Large icon's copy in a cache key.
         const val LARGE_KEY = "^large"
