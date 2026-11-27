@@ -3315,12 +3315,16 @@ class LauncherActivity :
 
     // forItem: an app's, folder's or widget's own menu, whose actions can be
     // a row of icons (popupActionIcons); the smaller menus keep their labels.
-    private fun newItemPopup(forItem: Boolean = false): SupernovaPopupMenu {
+    private fun newItemPopup(
+        forItem: Boolean = false,
+        focusableOnShow: Boolean = false
+    ): SupernovaPopupMenu {
         val menu = SupernovaPopupMenu(
             this, popupSurface(), Animations.enabled(viewModel.state.value.prefs),
             cardBackground = viewModel.state.value.prefs.popupCardBg,
             style = viewModel.state.value.prefs.popupStyle,
-            groupShortcuts = viewModel.state.value.prefs.popupGroupShortcuts
+            groupShortcuts = viewModel.state.value.prefs.popupGroupShortcuts,
+            focusableOnShow = focusableOnShow
         )
         menu.actionIcons = forItem && viewModel.state.value.prefs.popupActionIcons
         // Same dismiss contract PopupMenu had; the armed-drag interplay
@@ -3465,7 +3469,10 @@ class LauncherActivity :
         touchX: Float? = menuTouchX,
         onSourceDismiss: () -> Unit = {}
     ): SupernovaPopupMenu {
-        val menu = newItemPopup(forItem = true)
+        val menu = newItemPopup(
+            forItem = true,
+            focusableOnShow = windowAnchor != null
+        )
         addNotificationRows(menu, app.packageName, app.userSerial)
         val extras = PopupRows.decode(
             viewModel.state.value.prefs.popupItemsDrawer, PopupRows.drawerDefaults

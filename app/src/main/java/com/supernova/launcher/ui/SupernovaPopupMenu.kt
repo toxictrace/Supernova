@@ -111,7 +111,10 @@ class SupernovaPopupMenu(
     private val style: PopupMenuStyle = PopupMenuStyle.BLOCK,
     // "Visually group shortcuts": the shortcut and notification groups
     // leave the menu's slab for tile groups of their own (newTileGroup).
-    groupShortcuts: Boolean = false
+    groupShortcuts: Boolean = false,
+    // Search has no drag handoff, so its popup can own Back and outside taps
+    // from the moment it appears.
+    focusableOnShow: Boolean = false
 ) {
 
     // popupActionIcons: addRow's rows go into rows of icons instead. Set
@@ -186,15 +189,14 @@ class SupernovaPopupMenu(
         )
     }
 
-    // Shown non-focusable and non-touch-modal: item menus appear DURING the
-    // long-press gesture, and a touch-modal window would take over the still
-    // -down stream - killing the lazy drag start that move-to-drag
-    // depends on. makeModal() upgrades the window once the finger lifts.
+    // Most item menus start non-focusable so an armed long-press can become
+    // a drag. Search menus are focusable immediately: Back and outside taps
+    // dismiss only that popup, while its dialog remains open.
     private val popup = PopupWindow(
         shadowRoom,
         LinearLayout.LayoutParams.WRAP_CONTENT,
         LinearLayout.LayoutParams.WRAP_CONTENT,
-        false
+        focusableOnShow
     ).apply {
         setBackgroundDrawable(ColorDrawable(0))
         isOutsideTouchable = true
@@ -203,10 +205,11 @@ class SupernovaPopupMenu(
         // the system pushes an oversized window back inside and drags the menu
         // off its mark by the gutter's width.
         isClippingEnabled = false
-        // FLAG_NOT_FOCUSABLE already implies not-touch-modal, so the
-        // still-down gesture keeps streaming on Android 9 too; setTouchModal
-        // (API 29+) just makes it explicit.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) isTouchModal = false
+        // Drag menus must remain non-touch-modal while the press is armed.
+        // Search menus are focusable and touch-modal from their first frame.
+        if (!focusableOnShow && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            isTouchModal = false
+        }
         // 0 (not the -1 default) so disabling animations kills the system's
         // fallback popup transition too.
         animationStyle = if (animate) R.style.FolderPopupAnimation else 0
