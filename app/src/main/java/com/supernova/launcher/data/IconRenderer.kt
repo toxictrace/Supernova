@@ -235,10 +235,6 @@ class IconRenderer(context: Context) {
     ): Drawable {
         val size = iconSizePx
         val shapePath = shape.pathFor(size.toFloat(), customShape)
-            ?: glassPainter.systemMask(
-                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
-                size
-            )
         val artwork = createBitmap(size, size)
         val artworkCanvas = Canvas(artwork)
         if (source is AdaptiveIconDrawable) {
@@ -263,7 +259,30 @@ class IconRenderer(context: Context) {
         val fallbackPlateColor = if (back == null) artworkColor ?: PLATE_COLOR else null
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
-        // Crop the visible artwork to a circle, enlarging and recropping until the circle has no transparent gaps.
+
+        // System keeps both the pack plate and app artwork in their original square bounds.
+        // No circular crop, shape mask, or 75% artwork reduction is applied.
+        if (shape == IconShape.SYSTEM) {
+            val output = createBitmap(size, size)
+            val canvas = Canvas(output)
+            if (back == null) {
+                canvas.drawColor(fallbackPlateColor ?: PLATE_COLOR)
+            } else {
+                back.mutate().apply {
+                    setBounds(0, 0, size, size)
+                    draw(canvas)
+                }
+            }
+            canvas.drawBitmap(artwork, 0f, 0f, null)
+            upon?.let {
+                it.setBounds(0, 0, size, size)
+                it.draw(canvas)
+            }
+            artwork.recycle()
+            return output.toDrawable(resources)
+        }
+
+        // Crop and fit artwork only for explicitly selected non-system shapes.
         val center = size / 2f
         val radius = size / 2f
         val circle = Path().apply {
