@@ -239,6 +239,7 @@ class IconRenderer(context: Context) {
         shape: IconShape,
         customShape: CustomShapeSpec?,
         backs: List<IconPackBack> = emptyList(),
+        mask: Drawable? = null,
         upon: Drawable? = null
     ): Drawable {
         val size = iconSizePx
@@ -351,15 +352,32 @@ class IconRenderer(context: Context) {
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
         if (shape == IconShape.SYSTEM) {
-            // Keep the iconback intact. The system shape is applied outside this bitmap.
+            // Keep the pack's own plate silhouette. Its iconmask, not the
+            // launcher's system shape, defines the plate boundary.
+            val plate = createBitmap(size, size)
+            val plateCanvas = Canvas(plate)
             if (back == null) {
-                canvas.drawColor(fallbackPlateColor ?: PLATE_COLOR)
+                plateCanvas.drawColor(fallbackPlateColor ?: PLATE_COLOR)
             } else {
                 back.mutate().apply {
                     setBounds(0, 0, size, size)
-                    draw(canvas)
+                    draw(plateCanvas)
                 }
             }
+            mask?.let {
+                val maskBitmap = drawableToBitmap(it)
+                val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+                }
+                plateCanvas.drawBitmap(
+                    maskBitmap,
+                    null,
+                    RectF(0f, 0f, size.toFloat(), size.toFloat()),
+                    maskPaint
+                )
+            }
+            canvas.drawBitmap(plate, 0f, 0f, null)
+            plate.recycle()
             canvas.drawBitmap(finalArtwork, 0f, 0f, artworkPaint)
             upon?.let {
                 it.setBounds(0, 0, size, size)
