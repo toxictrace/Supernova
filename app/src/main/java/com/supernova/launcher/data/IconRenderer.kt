@@ -127,7 +127,11 @@ class IconRenderer(context: Context) {
         glass: IconGlass = IconGlass.OFF
     ): Drawable {
         val size = iconSizePx
-        val shapePath = shape.pathFor(size.toFloat(), customShape) ?: return source
+        val shapePath = shape.pathFor(size.toFloat(), customShape)
+            ?: glassPainter.systemMask(
+                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
+                size
+            ) ?: return source
         val previousShadow = source as? ShadowedIconDrawable
 
         val content = createBitmap(size, size)
