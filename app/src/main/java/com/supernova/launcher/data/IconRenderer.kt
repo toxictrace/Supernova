@@ -131,6 +131,10 @@ class IconRenderer(context: Context) {
             ?: glassPainter.systemMask(
                 source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
                 size
+            )
+            ?: glassPainter.systemMask(
+                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
+                size
             ) ?: return source
         val previousShadow = source as? ShadowedIconDrawable
 
