@@ -267,29 +267,13 @@ class IconRenderer(context: Context) {
         val artworkBounds = visibleArtworkBounds(artwork)
             ?: android.graphics.Rect(0, 0, size, size)
 
-        // System keeps both the pack plate and app artwork in their original square bounds.
-        // No circular crop, shape mask, or 75% artwork reduction is applied.
-        if (shape == IconShape.SYSTEM) {
-            val output = createBitmap(size, size)
-            val canvas = Canvas(output)
-            if (back == null) {
-                canvas.drawColor(fallbackPlateColor ?: PLATE_COLOR)
-            } else {
-                back.mutate().apply {
-                    setBounds(0, 0, size, size)
-                    draw(canvas)
-                }
-            }
-            canvas.drawBitmap(artwork, 0f, 0f, null)
-            upon?.let {
-                it.setBounds(0, 0, size, size)
-                it.draw(canvas)
-            }
-            artwork.recycle()
-            return output.toDrawable(resources)
+        // System leaves the iconback square and intact.
+        // App artwork still follows the existing circular crop and 75% sizing.
+        val shapePath = if (shape == IconShape.SYSTEM) {
+            null
+        } else {
+            requireNotNull(shape.pathFor(size.toFloat(), customShape))
         }
-
-        val shapePath = requireNotNull(shape.pathFor(size.toFloat(), customShape))
 
         // Crop and fit artwork only for explicitly selected non-system shapes.
         val center = size / 2f
