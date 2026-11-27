@@ -540,9 +540,7 @@ class IconRenderer(context: Context) {
         glass: IconGlass,
         fillLegacyToShape: Boolean = false
     ): Drawable {
-        if (fillLegacyToShape && source !is AdaptiveIconDrawable &&
-            reshapeLegacy == ReshapeLegacy.OFF && glass == IconGlass.OFF
-        ) {
+        if (fillLegacyToShape && source !is AdaptiveIconDrawable && glass == IconGlass.OFF) {
             val size = iconSizePx
             val picture = createBitmap(size, size)
             val previousBounds = source.copyBounds()
@@ -564,7 +562,12 @@ class IconRenderer(context: Context) {
             val box = BakedBacking.contentBounds(pixels, size)
             val mask = shape.pathFor(size.toFloat(), customShape)
                 ?: glassPainter.systemMask(AdaptiveIconDrawable(Color.BLACK.toDrawable(), null), size)
-            val filled = box?.let { filledMask(picture, it, mask, 1f) }
+            val cover = box?.let {
+                val maskReach = PictureFrame.reach(maskPixels(mask, size), size)
+                val iconReach = PictureFrame.boxReach(pixels, size, it)
+                if (iconReach > 0f) maskReach / iconReach else 1f
+            } ?: 1f
+            val filled = box?.let { filledMask(picture, it, mask, cover) }
             picture.recycle()
             if (filled != null) return filled
         }
