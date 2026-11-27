@@ -270,12 +270,12 @@ class IconRenderer(context: Context) {
         // System leaves the iconback square and intact.
         // App artwork still follows the existing circular crop and 75% sizing.
         val shapePath = if (shape == IconShape.SYSTEM) {
-            null
+            Path()
         } else {
             requireNotNull(shape.pathFor(size.toFloat(), customShape))
         }
 
-        // Crop and fit artwork only for explicitly selected non-system shapes.
+        // Crop and fit app artwork using the existing circular crop.
         val center = size / 2f
         val radius = size / 2f
         val circle = Path().apply {
