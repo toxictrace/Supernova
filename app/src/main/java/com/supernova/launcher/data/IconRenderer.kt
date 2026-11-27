@@ -508,93 +508,22 @@ class IconRenderer(context: Context) {
                 return if (requiredPixels == 0) 1f else covered.toFloat() / requiredPixels
             }
 
-            var low = baseScale
-            var high = baseScale
-            var highCoverage = coverage(high)
-
-            // Find a covering scale without allowing an unbounded runaway
-            // when the pack image contains transparent gaps inside its bounds.
+            var scale = baseScale
+            var covered = coverage(scale)
             var attempts = 0
-            while (highCoverage < 1f && attempts < 8) {
-                low = high
-                high *= 2f
-                highCoverage = coverage(high)
+            while (covered < 1f && attempts < 120) {
+                scale *= 1.05f
+                covered = coverage(scale)
                 attempts++
             }
-            if (highCoverage >= 1f) {
-                repeat(12) {
-                    val middle = (low + high) / 2f
-                    if (coverage(middle) >= 1f) high = middle else low = middle
-                }
-            }
 
-            val targetWidth = bounds.width() * high
-            val targetHeight = bounds.height() * high
-            val target = RectF(
-                center - targetWidth / 2f,
-                center - targetHeight / 2f,
-                center + targetWidth / 2f,
-                center + targetHeight / 2f
-            )
-            canvas.drawBitmap(artwork, bounds, target, paint)
-
-            // Some packs use iconback artwork with transparent notches.
-            // Extend the nearest visible edge colour into any remaining gaps
-            // inside the selected shape, so generated plates stay complete.
-            if (highCoverage < 1f) {
-                fillShapeGapsFromNearestPixel(scaledArtwork, maskPixels, size)
-                canvas.drawBitmap(scaledArtwork, 0f, 0f, paint)
-            }
+            // Enlarge the original plate in 5% steps until it covers the selected shape.
+            canvas.drawBitmap(scaledArtwork, 0f, 0f, paint)
 
             shapeMask.recycle()
             scaledArtwork.recycle()
         }
         artwork.recycle()
-    }
-    // Fills transparent pixels inside a mask from their nearest opaque neighbour.
-    // This is a fallback for icon-pack plates with transparent notches.
-    private fun fillShapeGapsFromNearestPixel(bitmap: Bitmap, maskPixels: IntArray, size: Int) {
-        val pixels = IntArray(size * size)
-        bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-        val nearest = IntArray(size * size) { -1 }
-        val queue = IntArray(size * size)
-        var head = 0
-        var tail = 0
-
-        for (index in pixels.indices) {
-            if (Color.alpha(pixels[index]) >= 128) {
-                nearest[index] = index
-                queue[tail++] = index
-            }
-        }
-        if (tail == 0) return
-
-        while (head < tail) {
-            val index = queue[head++]
-            val x = index % size
-            val y = index / size
-            for (dy in -1..1) {
-                for (dx in -1..1) {
-                    if (dx == 0 && dy == 0) continue
-                    val nx = x + dx
-                    val ny = y + dy
-                    if (nx !in 0 until size || ny !in 0 until size) continue
-                    val next = ny * size + nx
-                    if (nearest[next] == -1) {
-                        nearest[next] = nearest[index]
-                        queue[tail++] = next
-                    }
-                }
-            }
-        }
-
-        for (index in pixels.indices) {
-            if (Color.alpha(maskPixels[index]) >= 128 && Color.alpha(pixels[index]) < 128) {
-                val source = nearest[index]
-                if (source >= 0) pixels[index] = pixels[source]
-            }
-        }
-        bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
     }
 
     // An app's own icon, left as it comes. A legacy one that is a tile of its
