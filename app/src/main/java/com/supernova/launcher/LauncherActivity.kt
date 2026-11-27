@@ -3474,8 +3474,10 @@ class LauncherActivity :
             focusableOnShow = windowAnchor != null
         )
         addNotificationRows(menu, app.packageName, app.userSerial)
+        val popupPrefs = viewModel.state.value.prefs
         val extras = PopupRows.decode(
-            viewModel.state.value.prefs.popupItemsDrawer, PopupRows.drawerDefaults
+            if (windowAnchor != null) popupPrefs.popupItemsSearch else popupPrefs.popupItemsDrawer,
+            PopupRows.drawerDefaults
         )
 
         // Drawer menu: Add to home, App info, Uninstall, Edit (+

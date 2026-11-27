@@ -947,7 +947,8 @@
     <!-- Phase 6: popup menu -->
     <string name="popup_menu_rows">Popup menu items</string>
     <!-- Under Popup menu items: how many extra rows each menu has. -->
-    <string name="popup_rows_summary">%1$d on Home · %2$d in the drawer</string>
+    <string name="popup_rows_summary">%1$d on Home · %2$d in the drawer · %3$d in Supernova search</string>
+    <string name="popup_rows_search">Supernova search</string>
     <string name="popup_notifications">Notifications in popup</string>
     <string name="popup_row_store">Show in store</string>
     <string name="popup_row_close_app">Close app</string>

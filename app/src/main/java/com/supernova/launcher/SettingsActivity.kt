@@ -2435,23 +2435,21 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    // Popup menu row configuration: two checkbox groups (Home / Drawer), one
-    // per optional row. OK commits both prefs; decode/encode round-trips the
-    // "" = defaults convention via the NONE token.
+    // Popup menu row configuration for Home, Drawer and Supernova search.
+    // The search menu has the same choices and defaults as the app drawer.
+    // Two columns keep every option visible without a scrolling container.
     private fun showPopupRowsDialog() {
         val prefs = viewModel.state.value.prefs
-        val homeSelected = com.supernova.launcher.ui.PopupRows
-            .decode(prefs.popupItemsHome, com.supernova.launcher.ui.PopupRows.homeDefaults)
-            .toMutableSet()
-        val drawerSelected = com.supernova.launcher.ui.PopupRows
-            .decode(prefs.popupItemsDrawer, com.supernova.launcher.ui.PopupRows.drawerDefaults)
-            .toMutableSet()
+        val popupRows = com.supernova.launcher.ui.PopupRows
+        val homeSelected = popupRows.decode(prefs.popupItemsHome, popupRows.homeDefaults).toMutableSet()
+        val drawerSelected = popupRows.decode(prefs.popupItemsDrawer, popupRows.drawerDefaults).toMutableSet()
+        val searchSelected = popupRows.decode(prefs.popupItemsSearch, popupRows.drawerDefaults).toMutableSet()
 
         val density = resources.displayMetrics.density
         fun dpPx(value: Int) = (value * density).toInt()
         val column = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(dpPx(20), dpPx(8), dpPx(20), dpPx(8))
+            setPadding(dpPx(16), dpPx(4), dpPx(16), dpPx(4))
         }
 
         fun header(titleRes: Int) {
@@ -2459,7 +2457,7 @@ class SettingsActivity : AppCompatActivity() {
                 text = getString(titleRes)
                 setTextColor(com.supernova.launcher.ui.theme.CustomAccent.of(column))
                 textSizeOf(R.dimen.text_secondary)
-                setPadding(0, dpPx(12), 0, dpPx(4))
+                setPadding(0, dpPx(7), 0, dpPx(2))
             })
         }
 
@@ -2467,32 +2465,47 @@ class SettingsActivity : AppCompatActivity() {
             choices: List<com.supernova.launcher.ui.PopupExtraRow>,
             selected: MutableSet<com.supernova.launcher.ui.PopupExtraRow>
         ) {
-            choices.forEach { row ->
-                column.addView(android.widget.CheckBox(this).apply {
-                    text = getString(EnumLabels.of(row))
-                    // The box drawable has no inset of its own.
-                    setPaddingRelative(dpPx(12), paddingTop, paddingEnd, paddingBottom)
-                    isChecked = row in selected
-                    setOnCheckedChangeListener { _, checked ->
-                        if (checked) selected.add(row) else selected.remove(row)
-                    }
-                })
+            choices.chunked(2).forEach { pair ->
+                val rowLayout = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                }
+                pair.forEach { row ->
+                    rowLayout.addView(android.widget.CheckBox(this).apply {
+                        layoutParams = android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                        minHeight = dpPx(38)
+                        maxLines = 2
+                        text = getString(EnumLabels.of(row))
+                        setPaddingRelative(dpPx(8), dpPx(1), dpPx(4), dpPx(1))
+                        isChecked = row in selected
+                        setOnCheckedChangeListener { _, checked ->
+                            if (checked) selected.add(row) else selected.remove(row)
+                        }
+                    })
+                }
+                if (pair.size == 1) {
+                    rowLayout.addView(android.view.View(this), android.widget.LinearLayout.LayoutParams(0, dpPx(38), 1f))
+                }
+                column.addView(rowLayout, android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ))
             }
         }
 
         header(R.string.settings_section_home)
-        checkboxes(com.supernova.launcher.ui.PopupRows.homeChoices, homeSelected)
+        checkboxes(popupRows.homeChoices, homeSelected)
         header(R.string.settings_section_drawer)
-        checkboxes(com.supernova.launcher.ui.PopupRows.drawerChoices, drawerSelected)
-
-        val scroll = android.widget.ScrollView(this).apply { addView(column) }
+        checkboxes(popupRows.drawerChoices, drawerSelected)
+        header(R.string.popup_rows_search)
+        checkboxes(popupRows.drawerChoices, searchSelected)
 
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.popup_menu_rows)
-            .setView(scroll)
+            .setView(column)
             .setPositiveButton(R.string.ok) { _, _ ->
-                viewModel.set(Pref.popupItemsHome, com.supernova.launcher.ui.PopupRows.encode(homeSelected))
-                viewModel.set(Pref.popupItemsDrawer, com.supernova.launcher.ui.PopupRows.encode(drawerSelected))
+                viewModel.set(Pref.popupItemsHome, popupRows.encode(homeSelected))
+                viewModel.set(Pref.popupItemsDrawer, popupRows.encode(drawerSelected))
+                viewModel.set(Pref.popupItemsSearch, popupRows.encode(searchSelected))
             }
             .setNegativeButton(R.string.cancel, null)
             .show()

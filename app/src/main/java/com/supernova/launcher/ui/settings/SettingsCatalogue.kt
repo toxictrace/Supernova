@@ -1774,7 +1774,8 @@ object SettingsCatalogue {
                         context.getString(
                             R.string.popup_rows_summary,
                             popupRows.decode(prefs.popupItemsHome, popupRows.homeDefaults).size,
-                            popupRows.decode(prefs.popupItemsDrawer, popupRows.drawerDefaults).size
+                            popupRows.decode(prefs.popupItemsDrawer, popupRows.drawerDefaults).size,
+                            popupRows.decode(prefs.popupItemsSearch, popupRows.drawerDefaults).size
                         )
                     },
                     onClick = actions.editPopupRows

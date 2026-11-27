@@ -534,6 +534,8 @@ data class LauncherPrefs(
     // joined). "" = defaults; "NONE" = explicitly none.
     val popupItemsHome: String = "",
     val popupItemsDrawer: String = "",
+    // Search has its own drawer-style popup row selection.
+    val popupItemsSearch: String = "",
     // Top drop-target bar (Remove / App info / Uninstall) during item drags.
     // Top drop-target bar (Remove / App info / Uninstall) during item drags.
     // Off by default: it was removed once by choice, so it returns opt-in.

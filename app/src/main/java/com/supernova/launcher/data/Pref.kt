@@ -335,6 +335,7 @@ object Pref {
     val popupStyle = choice("popup_style", PopupMenuStyle.entries)
     val popupItemsHome = text("popup_items_home")
     val popupItemsDrawer = text("popup_items_drawer")
+    val popupItemsSearch = text("popup_items_search")
     val dropTargets = bool("drop_targets")
     val undoRemove = bool("undo_remove")
     val disableAnimations = bool("disable_animations")
