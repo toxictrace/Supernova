@@ -338,20 +338,37 @@ class IconRenderer(context: Context) {
 
         val output = createBitmap(size, size)
         val canvas = Canvas(output)
-        canvas.withClip(shapePath) {
+        if (shape == IconShape.SYSTEM) {
+            // Keep the iconback intact. The system shape is applied outside this bitmap.
             if (back == null) {
-                drawPath(
-                    shapePath,
-                    Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = fallbackPlateColor ?: PLATE_COLOR
-                    }
-                )
+                canvas.drawColor(fallbackPlateColor ?: PLATE_COLOR)
+            } else {
+                back.mutate().apply {
+                    setBounds(0, 0, size, size)
+                    draw(canvas)
+                }
             }
-            back?.let { drawBackCoveringShape(this, it, shapePath, size) }
-            drawBitmap(finalArtwork, 0f, 0f, artworkPaint)
+            canvas.drawBitmap(finalArtwork, 0f, 0f, artworkPaint)
             upon?.let {
                 it.setBounds(0, 0, size, size)
-                it.draw(this)
+                it.draw(canvas)
+            }
+        } else {
+            canvas.withClip(shapePath) {
+                if (back == null) {
+                    drawPath(
+                        shapePath,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = fallbackPlateColor ?: PLATE_COLOR
+                        }
+                    )
+                }
+                back?.let { drawBackCoveringShape(this, it, shapePath, size) }
+                drawBitmap(finalArtwork, 0f, 0f, artworkPaint)
+                upon?.let {
+                    it.setBounds(0, 0, size, size)
+                    it.draw(this)
+                }
             }
         }
         finalArtwork.recycle()
