@@ -533,7 +533,42 @@ class IconRenderer(context: Context) {
     // overfilling a chosen shape cropped its art. A legacy logo is kept
     // whole on a plate of that shape (see legacyLogo). A pack's art, a picked picture
     // and the Original variant don't come here.
-    fun renderOwnIcon(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?, glass: IconGlass): Drawable {
+    fun renderOwnIcon(
+        source: Drawable,
+        shape: IconShape,
+        customShape: CustomShapeSpec?,
+        glass: IconGlass,
+        fillLegacyToShape: Boolean = false
+    ): Drawable {
+        if (fillLegacyToShape && source !is AdaptiveIconDrawable &&
+            reshapeLegacy == ReshapeLegacy.OFF && glass == IconGlass.OFF
+        ) {
+            val size = iconSizePx
+            val picture = createBitmap(size, size)
+            val previousBounds = source.copyBounds()
+            val intrinsicWidth = source.intrinsicWidth.takeIf { it > 0 } ?: size
+            val intrinsicHeight = source.intrinsicHeight.takeIf { it > 0 } ?: size
+            val intrinsicScale = size.toFloat() / maxOf(intrinsicWidth, intrinsicHeight)
+            val width = (intrinsicWidth * intrinsicScale).roundToInt().coerceAtLeast(1)
+            val height = (intrinsicHeight * intrinsicScale).roundToInt().coerceAtLeast(1)
+            val left = (size - width) / 2
+            val top = (size - height) / 2
+            try {
+                source.setBounds(left, top, left + width, top + height)
+                source.draw(Canvas(picture))
+            } finally {
+                source.bounds = previousBounds
+            }
+            val pixels = IntArray(size * size)
+            picture.getPixels(pixels, 0, size, 0, 0, size, size)
+            val box = BakedBacking.contentBounds(pixels, size)
+            val mask = shape.pathFor(size.toFloat(), customShape)
+                ?: glassPainter.systemMask(AdaptiveIconDrawable(Color.BLACK.toDrawable(), null), size)
+            val filled = box?.let { filledMask(picture, it, mask, 1f) }
+            picture.recycle()
+            if (filled != null) return filled
+        }
+
         val reshapes = source !is AdaptiveIconDrawable && reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
         val reshaped = if (reshapes) {
             val size = iconSizePx

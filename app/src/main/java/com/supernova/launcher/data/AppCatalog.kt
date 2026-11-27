@@ -421,7 +421,13 @@ class AppCatalog(
             } else {
                 when {
                     gallery != null -> pickedPicture(gallery.bitmap, effectiveShape)
-                    ownIcon -> iconRenderer.renderOwnIcon(source, effectiveShape, customShapeSpec, glass)
+                    ownIcon -> iconRenderer.renderOwnIcon(
+                        source,
+                        effectiveShape,
+                        customShapeSpec,
+                        glass,
+                        fillLegacyToShape = custom == null && iconPacks.loadedPack().isNullOrBlank()
+                    )
                     finishedArt -> iconRenderer.renderPackArt(source, effectiveShape, customShapeSpec)
                     else -> iconRenderer.render(source, decoration, effectiveShape, customShapeSpec, glass)
                 }
@@ -956,7 +962,7 @@ class AppCatalog(
     companion object {
         // Bumped when a render changes how an icon looks for the same
         // settings, so the disk cache starts over.
-        const val DISK_FORMAT = 24
+        const val DISK_FORMAT = 25
 
         // Marks a Large icon's copy in a cache key.
         const val LARGE_KEY = "^large"
