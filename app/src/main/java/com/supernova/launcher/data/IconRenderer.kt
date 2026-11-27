@@ -242,7 +242,6 @@ class IconRenderer(context: Context) {
         upon: Drawable? = null
     ): Drawable {
         val size = iconSizePx
-        val shapePath = shape.pathFor(size.toFloat(), customShape)
         val artwork = createBitmap(size, size)
         val artworkCanvas = Canvas(artwork)
         if (source is AdaptiveIconDrawable) {
@@ -289,6 +288,8 @@ class IconRenderer(context: Context) {
             artwork.recycle()
             return output.toDrawable(resources)
         }
+
+        val shapePath = requireNotNull(shape.pathFor(size.toFloat(), customShape))
 
         // Crop and fit artwork only for explicitly selected non-system shapes.
         val center = size / 2f
