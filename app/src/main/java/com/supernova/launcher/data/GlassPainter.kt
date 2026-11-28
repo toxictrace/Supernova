@@ -125,9 +125,14 @@ class GlassPainter {
     // One layer as it shows inside the mask, read back.
     private fun layerPixels(layer: Drawable, bounds: Rect, mask: Path, size: Int): IntArray {
         val bitmap = createBitmap(size, size)
-        Canvas(bitmap).withClip(mask) {
-            layer.bounds = bounds
-            layer.draw(this)
+        val previousBounds = Rect(layer.bounds)
+        try {
+            Canvas(bitmap).withClip(mask) {
+                layer.bounds = bounds
+                layer.draw(this)
+            }
+        } finally {
+            layer.bounds = previousBounds
         }
         val pixels = IntArray(size * size)
         bitmap.getPixels(pixels, 0, size, 0, 0, size, size)

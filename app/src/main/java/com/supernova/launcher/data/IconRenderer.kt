@@ -11,6 +11,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.createBitmap
@@ -571,22 +572,134 @@ class IconRenderer(context: Context) {
             return if (shadow) withShadow(cropped) else cropped.toDrawable(resources)
         }
 
-        val reshapes = source !is AdaptiveIconDrawable && reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
+        // An adaptive icon with only a background may contain the complete artwork.
+        // Reshape it like a legacy image instead of letting the platform crop it.
+        val adaptiveBackgroundOnly = source is AdaptiveIconDrawable &&
+            source.foreground == null && source.background != null &&
+            reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
+        val reshapes = (source !is AdaptiveIconDrawable || adaptiveBackgroundOnly) &&
+            reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
         val reshaped = if (reshapes) {
             val size = iconSizePx
-            val picture = createBitmap(size, size)
-            source.setBounds(0, 0, size, size)
-            source.draw(Canvas(picture))
-            val shapePath = shape.pathFor(size.toFloat(), customShape)
-            val mask = shapePath ?: glassPainter.systemMask(AdaptiveIconDrawable(Color.BLACK.toDrawable(), null), size)
-            // Auto with the system shape only resizes, as render does.
-            val plated = shapePath != null || reshapeLegacy == ReshapeLegacy.ON
-            legacyTile(picture, mask) ?: legacyDisc(picture, mask)
-                ?: if (plated) legacyLogo(picture, mask) else null
+            val picture = if (adaptiveBackgroundOnly) {
+                adaptiveBackgroundBitmap(source as AdaptiveIconDrawable)
+            } else {
+                createBitmap(size, size).also { bitmap ->
+                    source.setBounds(0, 0, size, size)
+                    source.draw(Canvas(bitmap))
+                }
+            }
+            if (picture == null) {
+                null
+            } else {
+                val shapePath = shape.pathFor(size.toFloat(), customShape)
+                val mask = shapePath ?: glassPainter.systemMask(
+                    source as? AdaptiveIconDrawable
+                        ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
+                    size
+                )
+                // Auto with the system shape only resizes, as render does.
+                val plated = shapePath != null || reshapeLegacy == ReshapeLegacy.ON
+                val pixels = IntArray(size * size)
+                picture.getPixels(pixels, 0, size, 0, 0, size, size)
+                val disc = if (adaptiveBackgroundOnly) PictureFrame.disc(pixels, size) else null
+                legacyTile(picture, mask)
+                    ?: if (disc != null) {
+                        adaptiveDiscOnPlate(picture, disc, mask, plated)
+                    } else {
+                        legacyDisc(picture, mask)
+                    }
+                    ?: if (plated) legacyLogo(picture, mask) else null
+            }
         } else {
             null
         }
         return reshaped ?: render(source, null, shape, customShape, glass)
+    }
+
+    // Read an adaptive background on its own when it contains a complete circular image.
+    private fun adaptiveBackgroundBitmap(source: AdaptiveIconDrawable): Bitmap? {
+        val background = source.background ?: return null
+        val size = iconSizePx
+
+        // InsetDrawable applies its inset after adaptive layer bleed.
+        // Drawing its child at the canvas size recovers the complete round artwork.
+        if (background is InsetDrawable) {
+            background.drawable?.let { content ->
+                val previousBounds = android.graphics.Rect(content.bounds)
+                val candidate = createBitmap(size, size)
+                try {
+                    content.setBounds(0, 0, size, size)
+                    content.draw(Canvas(candidate))
+                } finally {
+                    content.bounds = previousBounds
+                }
+                val pixels = IntArray(size * size)
+                candidate.getPixels(pixels, 0, size, 0, 0, size, size)
+                if (PictureFrame.disc(pixels, size) != null) return candidate
+                candidate.recycle()
+            }
+        }
+
+        val bleed = (size * AdaptiveIconDrawable.getExtraInsetFraction()).roundToInt()
+        val previousBounds = android.graphics.Rect(background.bounds)
+        val bitmap = createBitmap(size, size)
+        try {
+            background.bounds = android.graphics.Rect(-bleed, -bleed, size + bleed, size + bleed)
+            background.draw(Canvas(bitmap))
+        } finally {
+            background.bounds = previousBounds
+        }
+        return bitmap
+    }
+
+    // Fit a detected circular image inside the selected plate without cropping it.
+    private fun adaptiveDiscOnPlate(
+        picture: Bitmap,
+        disc: IntArray,
+        plate: Path,
+        plated: Boolean
+    ): Drawable {
+        if (!plated) return picture.toDrawable(resources)
+        val size = iconSizePx
+        val bitmap = createBitmap(size, size)
+        val canvas = Canvas(bitmap)
+        canvas.drawPath(
+            plate,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = legacyPlateColor(picture) }
+        )
+
+        val mask = maskPixels(plate, size)
+        val center = (size - 1) / 2f
+        var nearestOutside = size / 2f
+        for (index in mask.indices) {
+            if ((mask[index] ushr 24) >= 128) continue
+            val dx = index % size - center
+            val dy = index / size - center
+            nearestOutside = minOf(nearestOutside, kotlin.math.sqrt(dx * dx + dy * dy))
+        }
+        val targetRadius = (nearestOutside - 1.5f).coerceAtLeast(1f)
+        val left = disc[BakedBacking.LEFT]
+        val top = disc[BakedBacking.TOP]
+        val right = disc[BakedBacking.RIGHT]
+        val bottom = disc[BakedBacking.BOTTOM]
+        val sourceDiameter = maxOf(right - left + 1, bottom - top + 1).toFloat()
+        val scale = targetRadius * 2f / sourceDiameter
+        val sourceCenterX = (left + right + 1) / 2f
+        val sourceCenterY = (top + bottom + 1) / 2f
+
+        canvas.save()
+        canvas.translate(size / 2f, size / 2f)
+        canvas.scale(scale, scale)
+        canvas.translate(-sourceCenterX, -sourceCenterY)
+        canvas.drawBitmap(
+            picture,
+            0f,
+            0f,
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        )
+        canvas.restore()
+        return if (shadow) withShadow(bitmap) else bitmap.toDrawable(resources)
     }
 
     // A pack's own art. It is finished as the pack made it, so Reshape legacy
@@ -812,12 +925,47 @@ class IconRenderer(context: Context) {
         }
     }
 
+    // Pick the most common opaque non-white colour for a Legacy plate.
+    // Quantized buckets combine nearby shades instead of counting RGB noise.
+    private fun legacyPlateColor(bitmap: Bitmap): Int {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val counts = HashMap<Int, Int>()
+        val sums = HashMap<Int, IntArray>()
+        for (pixel in pixels) {
+            if (Color.alpha(pixel) < 128) continue
+            val red = Color.red(pixel)
+            val green = Color.green(pixel)
+            val blue = Color.blue(pixel)
+            if (red >= 224 && green >= 224 && blue >= 224 &&
+                maxOf(red, green, blue) - minOf(red, green, blue) <= 24
+            ) continue
+            val key = ((red shr 4) shl 8) or ((green shr 4) shl 4) or (blue shr 4)
+            counts[key] = (counts[key] ?: 0) + 1
+            val sum = sums.getOrPut(key) { IntArray(3) }
+            sum[0] += red
+            sum[1] += green
+            sum[2] += blue
+        }
+        val dominant = counts.maxByOrNull { it.value }?.key ?: return PLATE_COLOR
+        val count = counts.getValue(dominant)
+        val sum = sums.getValue(dominant)
+        val darken = 0.78f
+        return Color.rgb(
+            (sum[0] / count * darken).roundToInt().coerceIn(0, 255),
+            (sum[1] / count * darken).roundToInt().coerceIn(0, 255),
+            (sum[2] / count * darken).roundToInt().coerceIn(0, 255)
+        )
+    }
+
     // A neutral plate - rounded, or cut to a chosen shape - with the icon
     // content inset onto it, matching the footprint adaptive icons render at.
     private fun withPlate(bitmap: Bitmap, shapePath: Path? = null, content: Float = PLATE_CONTENT): Bitmap {
         val output = Bitmap.createBitmap(iconSizePx, iconSizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
-        val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PLATE_COLOR }
+        val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = legacyPlateColor(bitmap) }
         canvas.drawPath(shapePath ?: platePath(iconSizePx, PLATE_RADIUS_FRACTION), platePaint)
         val inset = (iconSizePx * (1f - content) / 2f)
         canvas.drawBitmap(
@@ -979,13 +1127,20 @@ class IconRenderer(context: Context) {
             )
 
             // Preserve the app's complete adaptive artwork over the pack back.
-            source.background?.let {
-                it.bounds = bounds
-                it.draw(canvas)
-            }
-            source.foreground?.let {
-                it.bounds = bounds
-                it.draw(canvas)
+            val background = source.background
+            val foreground = source.foreground
+            val previousBackgroundBounds = background?.let { android.graphics.Rect(it.bounds) }
+            val previousForegroundBounds = foreground?.let { android.graphics.Rect(it.bounds) }
+            try {
+                background?.let { it.bounds = bounds; it.draw(canvas) }
+                foreground?.let { it.bounds = bounds; it.draw(canvas) }
+            } finally {
+                if (background != null && previousBackgroundBounds != null) {
+                    background.bounds = previousBackgroundBounds
+                }
+                if (foreground != null && previousForegroundBounds != null) {
+                    foreground.bounds = previousForegroundBounds
+                }
             }
             return
         }
