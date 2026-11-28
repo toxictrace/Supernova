@@ -171,6 +171,32 @@ class PictureFrameTest {
     }
 
     @Test
+    fun aSquareLegacyIconIsNotShrunkToFitACircle() {
+        val square = picture { _, _ -> true }
+        val box = BakedBacking.contentBounds(square, size)!!
+        val circle = picture { x, y -> inDisc(x, y, size / 2f) }
+
+        val cover = PictureFrame.maskCover(square, circle, size, box)
+
+        assertEquals(1f, cover, 0.03f)
+    }
+
+    @Test
+    fun aRoundLegacyIconExpandsToCoverSquareCorners() {
+        val round = picture { x, y -> inDisc(x, y, size * 0.46f) }
+        val box = BakedBacking.contentBounds(round, size)!!
+        val square = picture { _, _ -> true }
+
+        val cover = PictureFrame.maskCover(round, square, size, box)
+        val appliedScale = cover * size / maxOf(
+            box[BakedBacking.RIGHT] - box[BakedBacking.LEFT] + 1,
+            box[BakedBacking.BOTTOM] - box[BakedBacking.TOP] + 1
+        )
+
+        assertTrue(appliedScale > 1.3f)
+    }
+
+    @Test
     fun aCircleMaskNeedsNoEnlarging() {
         assertEquals(1f, PictureFrame.reach(picture { x, y -> inDisc(x, y, size / 2f) }, size), 0.02f)
     }

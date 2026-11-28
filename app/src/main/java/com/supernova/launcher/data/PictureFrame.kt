@@ -114,6 +114,68 @@ internal object PictureFrame {
             .all { (x, y) -> alpha(pixels[y * size + x]) >= SOLID_ALPHA }
     }
 
+    // The uniform scale that makes the source silhouette cover the mask.
+    // Compare both silhouettes' convex support in every direction. A single
+    // farthest-radius comparison incorrectly shrinks squares to about 71%.
+    fun maskCover(source: IntArray, mask: IntArray, size: Int, box: IntArray): Float {
+        val left = box[BakedBacking.LEFT]
+        val top = box[BakedBacking.TOP]
+        val right = box[BakedBacking.RIGHT]
+        val bottom = box[BakedBacking.BOTTOM]
+        val centreX = (left + right + 1) / 2f
+        val centreY = (top + bottom + 1) / 2f
+
+        val sourceX = FloatArray(source.size)
+        val sourceY = FloatArray(source.size)
+        var sourceCount = 0
+        for (index in source.indices) {
+            if (alpha(source[index]) < SOLID_ALPHA) continue
+            sourceX[sourceCount] = index % size + 0.5f - centreX
+            sourceY[sourceCount] = index / size + 0.5f - centreY
+            sourceCount++
+        }
+
+        val maskX = FloatArray(mask.size)
+        val maskY = FloatArray(mask.size)
+        val maskCentre = size / 2f
+        var maskCount = 0
+        for (index in mask.indices) {
+            if (alpha(mask[index]) < SOLID_ALPHA) continue
+            maskX[maskCount] = index % size + 0.5f - maskCentre
+            maskY[maskCount] = index / size + 0.5f - maskCentre
+            maskCount++
+        }
+        if (sourceCount == 0 || maskCount == 0) return 1f
+
+        var scale = 1f
+        for (degree in 0 until 180) {
+            val angle = Math.PI.toFloat() * degree / 180f
+            val dx = kotlin.math.cos(angle)
+            val dy = kotlin.math.sin(angle)
+            var sourceMax = Float.NEGATIVE_INFINITY
+            var sourceMin = Float.POSITIVE_INFINITY
+            var maskMax = Float.NEGATIVE_INFINITY
+            var maskMin = Float.POSITIVE_INFINITY
+
+            for (index in 0 until sourceCount) {
+                val projection = sourceX[index] * dx + sourceY[index] * dy
+                sourceMax = maxOf(sourceMax, projection)
+                sourceMin = minOf(sourceMin, projection)
+            }
+            for (index in 0 until maskCount) {
+                val projection = maskX[index] * dx + maskY[index] * dy
+                maskMax = maxOf(maskMax, projection)
+                maskMin = minOf(maskMin, projection)
+            }
+
+            if (sourceMax > 0f) scale = maxOf(scale, maskMax / sourceMax)
+            if (sourceMin < 0f) scale = maxOf(scale, maskMin / sourceMin)
+        }
+
+        val boxSize = maxOf(right - left + 1, bottom - top + 1)
+        return scale * boxSize / size
+    }
+
     // How far the box's solid pixels reach from its centre, in half its longer
     // side: 1 for a disc, about 1.41 for a square. What a mask's reach compares
     // with to size a tile whose corners are rounded.

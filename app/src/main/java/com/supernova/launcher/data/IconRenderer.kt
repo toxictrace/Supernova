@@ -563,9 +563,7 @@ class IconRenderer(context: Context) {
             val mask = shape.pathFor(size.toFloat(), customShape)
                 ?: glassPainter.systemMask(AdaptiveIconDrawable(Color.BLACK.toDrawable(), null), size)
             val cover = box?.let {
-                val maskReach = PictureFrame.reach(maskPixels(mask, size), size)
-                val iconReach = PictureFrame.boxReach(pixels, size, it)
-                if (iconReach > 0f) maskReach / iconReach else 1f
+                PictureFrame.maskCover(pixels, maskPixels(mask, size), size, it)
             } ?: 1f
             val filled = box?.let { filledMask(picture, it, mask, cover) }
             picture.recycle()
