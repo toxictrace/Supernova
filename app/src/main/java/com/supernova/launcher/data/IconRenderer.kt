@@ -557,17 +557,18 @@ class IconRenderer(context: Context) {
             } finally {
                 source.bounds = previousBounds
             }
-            val pixels = IntArray(size * size)
-            picture.getPixels(pixels, 0, size, 0, 0, size, size)
-            val box = BakedBacking.contentBounds(pixels, size)
-            val mask = shape.pathFor(size.toFloat(), customShape)
-                ?: glassPainter.systemMask(AdaptiveIconDrawable(Color.BLACK.toDrawable(), null), size)
-            val cover = box?.let {
-                PictureFrame.maskCover(pixels, maskPixels(mask, size), size, it)
-            } ?: 1f
-            val filled = box?.let { filledMask(picture, it, mask, cover) }
+            // Treat the complete square canvas as the source file boundary.
+            // Ignore its alpha silhouette and trim exactly two pixels per edge.
+            val cropped = createBitmap(size, size)
+            val inset = LEGACY_FILE_CROP_PX.coerceAtMost((size - 1) / 2)
+            Canvas(cropped).drawBitmap(
+                picture,
+                android.graphics.Rect(inset, inset, size - inset, size - inset),
+                android.graphics.Rect(0, 0, size, size),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
             picture.recycle()
-            if (filled != null) return filled
+            return if (shadow) withShadow(cropped) else cropped.toDrawable(resources)
         }
 
         val reshapes = source !is AdaptiveIconDrawable && reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
@@ -1041,6 +1042,7 @@ class IconRenderer(context: Context) {
         fun bitmapOf(icon: Drawable): Bitmap? =
             (icon as? BitmapDrawable)?.bitmap ?: (icon as? ShadowedIconDrawable)?.bitmap
 
+        private const val LEGACY_FILE_CROP_PX = 2
         private const val ICON_SIZE_DP = 48f
         private const val LEGACY_INSET_FRACTION = 0.04f
         private const val LEGACY_SHAPE_FILL = 1.18f
