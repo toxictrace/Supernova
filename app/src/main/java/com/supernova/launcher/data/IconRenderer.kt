@@ -118,64 +118,6 @@ class IconRenderer(context: Context) {
     }
 
 
-    // Applies the user's selected shape to the completed icon, after every
-    // source and icon-pack layer has been composed. Existing shadows are
-    // removed before clipping and rebuilt from the final silhouette.
-    fun applyFinalShape(
-        source: Drawable,
-        shape: IconShape,
-        customShape: CustomShapeSpec?,
-        glass: IconGlass = IconGlass.OFF
-    ): Drawable {
-        val size = iconSizePx
-        val shapePath = shape.pathFor(size.toFloat(), customShape)
-            ?: glassPainter.systemMask(
-                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
-                size
-            )
-            ?: glassPainter.systemMask(
-                source as? AdaptiveIconDrawable ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
-                size
-            ) ?: return source
-        val previousShadow = source as? ShadowedIconDrawable
-
-        val content = createBitmap(size, size)
-        val contentCanvas = Canvas(content)
-        if (previousShadow != null) {
-            val sourceSize = previousShadow.intrinsicWidth
-            val sourceRect = android.graphics.Rect(
-                previousShadow.margin,
-                previousShadow.margin,
-                previousShadow.margin + sourceSize,
-                previousShadow.margin + sourceSize
-            )
-            contentCanvas.drawBitmap(
-                previousShadow.bitmap,
-                sourceRect,
-                android.graphics.Rect(0, 0, size, size),
-                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            )
-        } else {
-            source.setBounds(0, 0, size, size)
-            source.draw(contentCanvas)
-        }
-
-        val shaped = createBitmap(size, size)
-        val canvas = Canvas(shaped)
-        canvas.drawBitmap(content, 0f, 0f, null)
-        content.recycle()
-        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-        }
-        canvas.drawPath(shapePath, maskPaint)
-
-        return if (shadow || previousShadow != null) {
-            withShadow(shaped, shapePath.takeIf { glass != IconGlass.OFF })
-        } else {
-            shaped.toDrawable(resources)
-        }
-    }
-
     // A picture an app made for its shortcut (a contact's photo) that fills
     // its frame: drawn whole across the icon's shape - the chosen one, or
     // the platform's mask with System - enlarged only as far as a round
@@ -534,46 +476,9 @@ class IconRenderer(context: Context) {
     // overfilling a chosen shape cropped its art. A legacy logo is kept
     // whole on a plate of that shape (see legacyLogo). A pack's art, a picked picture
     // and the Original variant don't come here.
-    fun renderOwnIcon(
-        source: Drawable,
-        shape: IconShape,
-        customShape: CustomShapeSpec?,
-        glass: IconGlass,
-        fillLegacyToShape: Boolean = false
-    ): Drawable {
-        if (fillLegacyToShape && source !is AdaptiveIconDrawable && glass == IconGlass.OFF) {
-            val size = iconSizePx
-            val picture = createBitmap(size, size)
-            val previousBounds = source.copyBounds()
-            val intrinsicWidth = source.intrinsicWidth.takeIf { it > 0 } ?: size
-            val intrinsicHeight = source.intrinsicHeight.takeIf { it > 0 } ?: size
-            val intrinsicScale = size.toFloat() / maxOf(intrinsicWidth, intrinsicHeight)
-            val width = (intrinsicWidth * intrinsicScale).roundToInt().coerceAtLeast(1)
-            val height = (intrinsicHeight * intrinsicScale).roundToInt().coerceAtLeast(1)
-            val left = (size - width) / 2
-            val top = (size - height) / 2
-            try {
-                source.setBounds(left, top, left + width, top + height)
-                source.draw(Canvas(picture))
-            } finally {
-                source.bounds = previousBounds
-            }
-            // Treat the complete square canvas as the source file boundary.
-            // Ignore its alpha silhouette and trim exactly two pixels per edge.
-            val cropped = createBitmap(size, size)
-            val inset = LEGACY_FILE_CROP_PX.coerceAtMost((size - 1) / 2)
-            Canvas(cropped).drawBitmap(
-                picture,
-                android.graphics.Rect(inset, inset, size - inset, size - inset),
-                android.graphics.Rect(0, 0, size, size),
-                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            )
-            picture.recycle()
-            return if (shadow) withShadow(cropped) else cropped.toDrawable(resources)
-        }
-
-        // An adaptive icon with only a background may contain the complete artwork.
-        // Reshape it like a legacy image instead of letting the platform crop it.
+    fun renderOwnIcon(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?, glass: IconGlass): Drawable {
+        // Some adaptive icons contain only a background. If that background
+        // is the complete artwork, treat it like a legacy icon for reshaping.
         val adaptiveBackgroundOnly = source is AdaptiveIconDrawable &&
             source.foreground == null && source.background != null &&
             reshapeLegacy != ReshapeLegacy.OFF && glass == IconGlass.OFF
@@ -598,7 +503,6 @@ class IconRenderer(context: Context) {
                         ?: AdaptiveIconDrawable(Color.BLACK.toDrawable(), null),
                     size
                 )
-                // Auto with the system shape only resizes, as render does.
                 val plated = shapePath != null || reshapeLegacy == ReshapeLegacy.ON
                 val pixels = IntArray(size * size)
                 picture.getPixels(pixels, 0, size, 0, 0, size, size)
@@ -709,38 +613,11 @@ class IconRenderer(context: Context) {
     // (line art, a glyph) is drawn whole, since the shape's overfill and clip
     // cut its outer lines away.
     fun renderPackArt(source: Drawable, shape: IconShape, customShape: CustomShapeSpec?): Drawable {
-        val shapePath = shape.pathFor(iconSizePx.toFloat(), customShape)
+        val asMade = source !is AdaptiveIconDrawable && (shape == IconShape.SYSTEM || !solid(source))
+        if (!asMade) return render(source, null, shape, customShape, IconGlass.OFF)
         val bitmap = createBitmap(iconSizePx, iconSizePx)
-        drawBase(Canvas(bitmap), source, 1f, hasBack = false, hasPackDecoration = false, legacyFraction = asIsFraction(source))
-
-        // A circular pack icon can contain transparent logo details. Detect
-        // its outer disc independently of its interior, then enlarge it until
-        // it covers the selected mask. This replaces the round silhouette.
-        if (shapePath != null) {
-            val pixels = IntArray(iconSizePx * iconSizePx)
-            bitmap.getPixels(pixels, 0, iconSizePx, 0, 0, iconSizePx, iconSizePx)
-            val disc = PictureFrame.discOutline(pixels, iconSizePx)
-            if (disc != null) {
-                val cover = PictureFrame.reach(maskPixels(shapePath, iconSizePx), iconSizePx) /
-                    PictureFrame.boxReach(pixels, iconSizePx, disc)
-                val shaped = filledMask(bitmap, disc, shapePath, cover)
-                bitmap.recycle()
-                return shaped
-            }
-        }
-
-        val asMade = source !is AdaptiveIconDrawable && (shapePath == null || !solid(source))
-        if (!asMade) {
-            bitmap.recycle()
-            return render(source, null, shape, customShape, IconGlass.OFF)
-        }
-
-        // Pack artwork without a solid background is a logo, not a tile.
-        // Keep the complete artwork and put it on the user's selected shape.
-        val flat = shapePath?.let { path ->
-            withPlate(normalized(bitmap), path, SHAPED_PLATE_CONTENT)
-        } ?: bitmap
-        return if (shadow) withShadow(flat) else flat.toDrawable(resources)
+        drawBase(Canvas(bitmap), source, 1f, hasBack = false)
+        return if (shadow) withShadow(bitmap) else bitmap.toDrawable(resources)
     }
 
     // Whether the drawable, drawn at the icon's size, is one solid body.
@@ -776,10 +653,8 @@ class IconRenderer(context: Context) {
         val size = iconSizePx
         val pixels = IntArray(size * size)
         picture.getPixels(pixels, 0, size, 0, 0, size, size)
-        val box = PictureFrame.discOutline(pixels, size) ?: return null
-        val cover = PictureFrame.reach(maskPixels(mask, size), size) /
-            PictureFrame.boxReach(pixels, size, box)
-        return filledMask(picture, box, mask, cover)
+        val box = PictureFrame.disc(pixels, size) ?: return null
+        return filledMask(picture, box, mask, 1f)
     }
 
     // A legacy logo: whole, at the uniform size, on a plate cut to the
@@ -833,96 +708,52 @@ class IconRenderer(context: Context) {
         shapePath: Path?,
         glass: IconGlass
     ): Path? {
-        // The selected shape clips the complete fallback composition.
-        val decorationClip = if (decoration != null && shapePath != null) {
-            canvas.save().also { canvas.clipPath(shapePath) }
+        // Supernova keeps its stable multi-back selection and pack overlays.
+        val back = decoration?.backs?.firstOrNull()?.drawable
+        back?.let {
+            it.setBounds(0, 0, iconSizePx, iconSizePx)
+            it.draw(canvas)
+        }
+
+        val packScale = decoration?.scale?.takeIf { it > 0f } ?: 1f
+        val glassMask = if (glass != IconGlass.OFF && back == null) {
+            val mask = glassShape(source, shapePath)
+            val bleed = if (source is AdaptiveIconDrawable) {
+                AdaptiveIconDrawable.getExtraInsetFraction()
+            } else {
+                0f
+            }
+            glassPainter.drawIcon(canvas, source, mask, glass, bleed)
+            mask
         } else {
             null
         }
 
-        try {
-            val back = decoration?.backs?.firstOrNull()?.drawable
-            back?.let {
-                it.setBounds(0, 0, iconSizePx, iconSizePx)
-                it.draw(canvas)
+        if (glassMask == null && shapePath != null) {
+            val save = canvas.save()
+            try {
+                canvas.clipPath(shapePath)
+                drawShapedBase(canvas, source, packScale, hasBack = back != null)
+            } finally {
+                canvas.restoreToCount(save)
             }
-
-            val hasBack = back != null
-            val hasPackDecoration = decoration != null
-            val packScale = decoration?.scale?.takeIf { it > 0f } ?: 1f
-
-            val glassMask = if (glass != IconGlass.OFF && !hasBack) {
-                val mask = glassShape(source, shapePath)
-                val bleed = if (shapePath != null) ADAPTIVE_BLEED else PLATFORM_BLEED
-                glassPainter.drawIcon(canvas, source, mask, glass, bleed)
-                mask
-            } else {
-                null
-            }
-
-            val drawAppIcon: (Canvas) -> Unit = { target ->
-                if (shapePath != null) {
-                    val save = target.save()
-                    try {
-                        target.clipPath(shapePath)
-                        drawShapedBase(
-                            target,
-                            source,
-                            packScale,
-                            hasBack,
-                            hasPackDecoration,
-                            shapePath
-                        )
-                    } finally {
-                        target.restoreToCount(save)
-                    }
-                } else {
-                    val legacyFraction = if (hasPackDecoration || source is AdaptiveIconDrawable) {
-                        null
-                    } else {
-                        asIsFraction(source)
-                    }
-                    drawBase(target, source, packScale, hasBack, hasPackDecoration, legacyFraction)
-                }
-            }
-
-            if (glassMask == null) {
-                // A user-selected shape replaces the icon pack's own mask.
-                val iconMask = decoration?.mask?.takeIf { shapePath == null }
-                if (iconMask == null) {
-                    drawAppIcon(canvas)
-                } else {
-                    // ADW iconmask cuts the app artwork, not the iconback plate.
-                    val iconLayer = createBitmap(iconSizePx, iconSizePx)
-                    try {
-                        val iconLayerCanvas = Canvas(iconLayer)
-                        drawAppIcon(iconLayerCanvas)
-
-                        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
-                        }
-                        val maskBitmap = drawableToBitmap(iconMask)
-                        iconLayerCanvas.drawBitmap(
-                            maskBitmap,
-                            null,
-                            android.graphics.Rect(0, 0, iconSizePx, iconSizePx),
-                            maskPaint
-                        )
-                        canvas.drawBitmap(iconLayer, 0f, 0f, null)
-                    } finally {
-                        iconLayer.recycle()
-                    }
-                }
-            }
-
-            decoration?.upon?.let { upon ->
-                upon.setBounds(0, 0, iconSizePx, iconSizePx)
-                upon.draw(canvas)
-            }
-            return glassMask
-        } finally {
-            decorationClip?.let(canvas::restoreToCount)
+        } else if (glassMask == null) {
+            drawBase(canvas, source, packScale, hasBack = back != null)
         }
+
+        decoration?.mask?.let { mask ->
+            val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+            }
+            val maskBitmap = drawableToBitmap(mask)
+            canvas.drawBitmap(maskBitmap, null, android.graphics.Rect(0, 0, iconSizePx, iconSizePx), maskPaint)
+        }
+
+        decoration?.upon?.let { upon ->
+            upon.setBounds(0, 0, iconSizePx, iconSizePx)
+            upon.draw(canvas)
+        }
+        return glassMask
     }
 
     // Pick the most common opaque non-white colour for a Legacy plate.
@@ -1067,66 +898,24 @@ class IconRenderer(context: Context) {
         return output
     }
 
-    private fun drawBase(
-        canvas: Canvas,
-        source: Drawable,
-        packScale: Float,
-        hasBack: Boolean,
-        hasPackDecoration: Boolean,
-        legacyFraction: Float? = null
-    ) {
-        // ADW scale applies to the source artwork whenever fallback metadata exists.
+    private fun drawBase(canvas: Canvas, source: Drawable, packScale: Float, hasBack: Boolean) {
+        // IconViewer sizing, with Supernova's Normalize icon size preference.
         val fraction = when {
-            hasPackDecoration -> packScale.coerceIn(0.3f, 1f)
+            hasBack -> packScale.coerceIn(0.3f, 1f)
             source is AdaptiveIconDrawable -> 1f
-            else -> legacyFraction ?: (1f - (LEGACY_INSET_FRACTION * 2))
+            else -> asIsFraction(source)
         }
         val drawnSize = (iconSizePx * fraction).roundToInt()
         val offset = (iconSizePx - drawnSize) / 2
-
-        val adaptive = source as? AdaptiveIconDrawable
-
-        val save = if (hasBack && adaptive != null) {
-            val mask = Path(glassPainter.systemMask(adaptive, iconSizePx))
-            Matrix().apply {
-                setScale(fraction, fraction, iconSizePx / 2f, iconSizePx / 2f)
-            }.also(mask::transform)
-            canvas.save().also { canvas.clipPath(mask) }
-        } else {
-            -1
-        }
-
-        try {
-            // Keep both adaptive layers. The pack back stays behind the complete app icon.
-            source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
-            source.draw(canvas)
-        } finally {
-            if (save >= 0) canvas.restoreToCount(save)
-        }
+        source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)
+        source.draw(canvas)
     }
 
-    private fun drawShapedBase(
-        canvas: Canvas,
-        source: Drawable,
-        packScale: Float,
-        hasBack: Boolean,
-        hasPackDecoration: Boolean,
-        shapePath: Path
-    ) {
+    private fun drawShapedBase(canvas: Canvas, source: Drawable, packScale: Float, hasBack: Boolean) {
         if (source is AdaptiveIconDrawable) {
-            // A pack back replaces the adaptive background. Keep only its foreground.
-            val fraction = if (hasPackDecoration) packScale.coerceIn(0.3f, 1f) else 1f
-            val drawnSize = (iconSizePx * fraction).roundToInt()
-            val offset = (iconSizePx - drawnSize) / 2
-            val bleed = (drawnSize * ADAPTIVE_BLEED).roundToInt()
-            val bounds = android.graphics.Rect(
-                offset - bleed,
-                offset - bleed,
-                offset + drawnSize + bleed,
-                offset + drawnSize + bleed
-            )
-
-            // Preserve the app's complete adaptive artwork over the pack back.
+            // Draw adaptive layers directly so the selected shape replaces the platform mask.
+            val bleed = (iconSizePx * AdaptiveIconDrawable.getExtraInsetFraction()).roundToInt()
+            val bounds = android.graphics.Rect(-bleed, -bleed, iconSizePx + bleed, iconSizePx + bleed)
             val background = source.background
             val foreground = source.foreground
             val previousBackgroundBounds = background?.let { android.graphics.Rect(it.bounds) }
@@ -1135,39 +924,16 @@ class IconRenderer(context: Context) {
                 background?.let { it.bounds = bounds; it.draw(canvas) }
                 foreground?.let { it.bounds = bounds; it.draw(canvas) }
             } finally {
-                if (background != null && previousBackgroundBounds != null) {
-                    background.bounds = previousBackgroundBounds
-                }
-                if (foreground != null && previousForegroundBounds != null) {
-                    foreground.bounds = previousForegroundBounds
-                }
+                if (background != null && previousBackgroundBounds != null) background.bounds = previousBackgroundBounds
+                if (foreground != null && previousForegroundBounds != null) foreground.bounds = previousForegroundBounds
             }
             return
         }
-
         if (hasBack) {
-            // Keep the app artwork inside the scaled outline over the pack plate.
-            val fraction = packScale.coerceIn(0.3f, 1f)
-            val matrix = Matrix().apply {
-                setScale(fraction, fraction, iconSizePx / 2f, iconSizePx / 2f)
-            }
-            val artworkShape = Path(shapePath).apply { transform(matrix) }
-            val save = canvas.save()
-            try {
-                canvas.clipPath(artworkShape)
-                drawBase(canvas, source, fraction, hasBack = true, hasPackDecoration = true)
-            } finally {
-                canvas.restoreToCount(save)
-            }
+            drawBase(canvas, source, packScale, hasBack = true)
             return
         }
-
-        if (hasPackDecoration) {
-            drawBase(canvas, source, packScale, hasBack = false, hasPackDecoration = true)
-            return
-        }
-
-        // Without pack metadata, legacy artwork keeps the launcher's existing fill behavior.
+        // Legacy artwork fills the selected shape like IconViewer.
         val drawnSize = (iconSizePx * LEGACY_SHAPE_FILL).roundToInt()
         val offset = (iconSizePx - drawnSize) / 2
         source.setBounds(offset, offset, offset + drawnSize, offset + drawnSize)

@@ -316,8 +316,7 @@ class AppCatalog(
             ?.let { calendar ->
                 runLogged("render calendar icon") {
                     val shape = shapeFor(override)
-                    val rendered = iconRenderer.renderPackArt(calendar, shape, customShapeSpec)
-                    iconRenderer.applyFinalShape(rendered, shape, customShapeSpec)
+                    iconRenderer.renderPackArt(calendar, shape, customShapeSpec)
                 }.getOrNull()
             }
             ?.let { rendered ->
@@ -421,23 +420,12 @@ class AppCatalog(
             } else {
                 when {
                     gallery != null -> pickedPicture(gallery.bitmap, effectiveShape)
-                    ownIcon -> iconRenderer.renderOwnIcon(
-                        source,
-                        effectiveShape,
-                        customShapeSpec,
-                        glass,
-                        fillLegacyToShape = custom == null && iconPacks.loadedPack().isNullOrBlank()
-                    )
+                    ownIcon -> iconRenderer.renderOwnIcon(source, effectiveShape, customShapeSpec, glass)
                     finishedArt -> iconRenderer.renderPackArt(source, effectiveShape, customShapeSpec)
                     else -> iconRenderer.render(source, decoration, effectiveShape, customShapeSpec, glass)
                 }
             }
-            iconRenderer.applyFinalShape(
-                rendered,
-                effectiveShape,
-                customShapeSpec,
-                if (gallery != null || missingPackIcon) IconGlass.OFF else glass
-            )
+            rendered
         }.getOrNull()
     }
 
